@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>qneed · AI İkiz</title>
+<style>
+  :root {
+    --bg: #faf8f5;
+    --card: #ffffff;
+    --ink: #22201d;
+    --muted: #7c766e;
+    --line: #eae5de;
+    --accent: #1f8a70;
+    --accent-soft: #e6f3ef;
+    --danger: #c0442e;
+    --warn-bg: #fdf3e3;
+    --warn-ink: #8a5a12;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 6px 20px rgba(0,0,0,.04);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 14px 22px; background: var(--card); border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .brand { font-weight: 700; font-size: 18px; letter-spacing: -.3px; }
+  .brand span { color: var(--accent); }
+  .pills { display: flex; gap: 8px; margin-left: auto; }
+  .pill {
+    font-size: 12px; padding: 4px 10px; border-radius: 999px;
+    background: #f1efe9; color: var(--muted); border: 1px solid var(--line);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .pill.ok { background: var(--accent-soft); color: var(--accent); border-color: #cfe8e0; }
+  .pill.bad { background: #fbeae6; color: var(--danger); border-color: #f2d3cb; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  nav { display: flex; gap: 4px; padding: 10px 22px 0; background: var(--card); border-bottom: 1px solid var(--line); }
+  nav button {
+    border: none; background: none; padding: 10px 16px; font-size: 14px; font-weight: 600;
+    color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0;
+  }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav button:hover { color: var(--ink); }
+  main { max-width: 1120px; margin: 0 auto; padding: 22px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; }
+  .card h2 { margin: 0 0 4px; font-size: 16px; }
+  .card .sub { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 5px; color: #4a463f; }
+  input, select, textarea {
+    width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px;
+    font: inherit; background: #fff; color: var(--ink);
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  textarea { resize: vertical; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+  .check { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+  .check input { width: auto; }
+  .check label { margin: 0; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border: none; border-radius: 9px;
+    background: var(--accent); color: #fff; font-weight: 600; font-size: 14px; cursor: pointer;
+  }
+  .btn:hover { filter: brightness(1.05); }
+  .btn.ghost { background: #f1efe9; color: var(--ink); }
+  .btn.small { padding: 5px 10px; font-size: 12px; }
+  .btn.link { background: none; color: var(--muted); padding: 5px 8px; }
+  .btn.link:hover { color: var(--accent); }
+  .btn.link.del:hover { color: var(--danger); }
+  .actions { display: flex; gap: 10px; margin-top: 16px; align-items: center; }
+  .list { margin-top: 18px; border-top: 1px solid var(--line); }
+  .item { display: flex; align-items: center; gap: 10px; padding: 11px 2px; border-bottom: 1px solid var(--line); }
+  .item .main { min-width: 0; flex: 1; }
+  .item .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .m { font-size: 12px; color: var(--muted); }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #f1efe9; color: var(--muted); margin-right: 4px; }
+  .tag.ex { background: var(--accent-soft); color: var(--accent); }
+  .empty { color: var(--muted); font-size: 13px; padding: 16px 2px; }
+  .note { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid #f2e2c4; border-radius: 9px; padding: 10px 12px; font-size: 13px; margin-bottom: 16px; }
+  /* Chat */
+  .chat-wrap { max-width: 760px; margin: 0 auto; }
+  .chat { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); height: 62vh; min-height: 360px; overflow-y: auto; padding: 16px; }
+  .bubble { max-width: 78%; padding: 9px 13px; border-radius: 14px; margin: 8px 0; white-space: pre-wrap; word-wrap: break-word; }
+  .bubble.user { background: #f1efe9; margin-left: auto; border-bottom-right-radius: 4px; }
+  .bubble.assistant { background: var(--accent-soft); border-bottom-left-radius: 4px; }
+  .bubble .who { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 2px; }
+  .chat-empty { color: var(--muted); text-align: center; margin-top: 40px; }
+  .composer { display: flex; gap: 10px; margin-top: 12px; }
+  .composer input { flex: 1; }
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .toolbar .hint { color: var(--muted); font-size: 12px; margin-left: auto; }
+  pre.prompt { background: #1e1c1a; color: #e9e4da; border-radius: var(--radius); padding: 16px; overflow: auto; max-height: 60vh; white-space: pre-wrap; word-wrap: break-word; font: 13px/1.55 "SF Mono", Consolas, monospace; }
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #22201d; color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+  #toast.err { background: var(--danger); }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">qneed · <span>AI İkiz</span></div>
+  <div class="pills">
+    <span class="pill" id="pillAnthropic"><span class="dot"></span>Claude</span>
+    <span class="pill" id="pillSupabase"><span class="dot"></span>Supabase</span>
+  </div>
+</header>
+
+<nav>
+  <button data-tab="veri" class="active">Veri Girişi</button>
+  <button data-tab="test">Test Simülasyonu</button>
+  <button data-tab="prompt">Sistem Promptu</button>
+</nav>
+
+<main>
+  <!-- ============ VERİ GİRİŞİ ============ -->
+  <section class="panel active" id="panel-veri">
+    <div id="veriNote"></div>
+    <div class="grid2">
+      <!-- Konuşma -->
+      <div class="card">
+        <h2>Konuşma Ekle</h2>
+        <p class="sub">Geçmiş satış yazışmaların — ikiz tarzını BUNLARDAN öğrenir. Kaydettiğin her konuşma otomatik örnek olur (kalitesi yüksek olanlar öncelikli). Öğrenmesini istemediğin bir konuşmayı kaydetme ya da sil.</p>
+        <input type="hidden" id="cv-slug" />
+        <label>Başlık</label>
+        <input id="cv-title" placeholder="ör. Yağlı cilt - serum satışı" />
+        <div class="row">
+          <div>
+            <label>Kanal</label>
+            <select id="cv-channel">
+              <option value="whatsapp">WhatsApp</option>
+              <option value="instagram">Instagram</option>
+              <option value="web">Web</option>
+              <option value="other">Diğer</option>
+            </select>
+          </div>
+          <div>
+            <label>Sonuç</label>
+            <select id="cv-outcome">
+              <option value="sold">Satıldı</option>
+              <option value="lost">Kaçtı</option>
+              <option value="open">Açık</option>
+              <option value="unknown">Belirsiz</option>
+            </select>
+          </div>
+          <div>
+            <label>Kalite (1-5)</label>
+            <input id="cv-quality" type="number" min="1" max="5" value="3" />
+          </div>
+        </div>
+        <label>Etiketler (virgülle)</label>
+        <input id="cv-tags" placeholder="yağlı cilt, serum, gözenek" />
+        <label>Diyalog</label>
+        <textarea id="cv-dialog" rows="8" placeholder="müşteri: merhaba yağlı cildim var ne önerirsiniz&#10;ben: Merhabaa 🌿 gözenek + yağlanma için Denge Serumu bire bir...&#10;müşteri: fiyatı ne kadar&#10;ben: 450 TL canım..."></textarea>
+        <div class="actions">
+          <button class="btn" id="cv-save">Kaydet</button>
+          <button class="btn ghost" id="cv-clear">Temizle</button>
+          <span id="cv-editing" class="hint" style="color:var(--muted);font-size:12px"></span>
+        </div>
+        <div class="list" id="cv-list"></div>
+      </div>
+
+      <!-- Ürün -->
+      <div class="card">
+        <h2>Ürün Ekle</h2>
+        <p class="sub">İkiz sadece buradaki ürünleri ve fiyatları önerir.</p>
+        <input type="hidden" id="pr-slug" />
+        <label>Ürün adı</label>
+        <input id="pr-name" placeholder="ör. Denge Serumu" />
+        <div class="row">
+          <div>
+            <label>Fiyat</label>
+            <input id="pr-price" type="number" step="0.01" placeholder="450" />
+          </div>
+          <div>
+            <label>Para birimi</label>
+            <input id="pr-currency" value="TRY" />
+          </div>
+          <div>
+            <label>Kategori</label>
+            <input id="pr-category" placeholder="serum" />
+          </div>
+        </div>
+        <label>Kime uygun</label>
+        <input id="pr-goodfor" placeholder="yağlı ve karma ciltler, gözenek görünümü" />
+        <label>Açıklama</label>
+        <textarea id="pr-description" rows="4" placeholder="Niacinamide %10 + Çinko. Sebum dengeler, gözenek görünümünü azaltır..."></textarea>
+        <div class="actions">
+          <button class="btn" id="pr-save">Kaydet</button>
+          <button class="btn ghost" id="pr-clear">Temizle</button>
+        </div>
+        <div class="list" id="pr-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TEST ============ -->
+  <section class="panel" id="panel-test">
+    <div class="chat-wrap">
+      <div id="testNote"></div>
+      <div class="toolbar">
+        <button class="btn ghost small" id="chat-new">Yeni sohbet</button>
+        <span class="hint">Her mesajda güncel veriyle (katalog + örnekler) sistem promptu yeniden kurulur.</span>
+      </div>
+      <div class="chat" id="chat"></div>
+      <div class="composer">
+        <input id="chatInput" placeholder="Müşteri gibi yaz..." autocomplete="off" />
+        <button class="btn" id="chatSend">Gönder</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SİSTEM PROMPTU ============ -->
+  <section class="panel" id="panel-prompt">
+    <div class="card" style="margin-bottom:18px">
+      <h2>İşletme notu (opsiyonel)</h2>
+      <p class="sub">Sadece bilgi: marka adı, ne sattığın, özel bir kural vb. <b>Tarzını BURAYA yazma</b> — ikiz yazışma tarzını senin kaydettiğin konuşmalardan öğrenir. Boş bırakabilirsin.</p>
+      <textarea id="persona" rows="6" placeholder="ör. Marka: Qneed Cosmetics. Doğal içerikli cilt bakımı satıyoruz. Kargo 2-3 gün."></textarea>
+      <div class="actions">
+        <button class="btn" id="persona-save">Notu kaydet</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="toolbar">
+        <h2 style="margin:0">Kurulan sistem promptu</h2>
+        <button class="btn ghost small" id="prompt-refresh" style="margin-left:auto">Yenile</button>
+      </div>
+      <p class="sub">Persona + satış oyun kitabı + kurallar + katalog + gerçek konuşma örneklerinden otomatik kurulur.</p>
+      <pre class="prompt" id="promptView">Yenile'ye bas...</pre>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let chatMessages = [];
+
+function toast(msg, err) {
+  const t = $('toast');
+  t.textContent = msg; t.className = 'show' + (err ? ' err' : '');
+  setTimeout(() => (t.className = ''), 2600);
+}
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data && data.error) || ('Hata ' + res.status));
+  return data;
+}
+function esc(s) { return String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+
+// ---- Sekmeler ----
+document.querySelectorAll('nav button').forEach((b) =>
+  b.addEventListener('click', () => {
+    document.querySelectorAll('nav button').forEach((x) => x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach((x) => x.classList.remove('active'));
+    b.classList.add('active');
+    $('panel-' + b.dataset.tab).classList.add('active');
+    if (b.dataset.tab === 'prompt') refreshPrompt();
+  }),
+);
+
+// ---- Durum ----
+async function loadState() {
+  try {
+    const s = await api('/api/state');
+    setPill('pillAnthropic', s.hasAnthropic, 'Claude');
+    setPill('pillSupabase', s.hasSupabase, 'Supabase');
+    if (!s.hasSupabase) {
+      $('veriNote').innerHTML = '<div class="note">Supabase bağlı değil (.env eksik). Veri kaydı için SUPABASE_URL + SUPABASE_SERVICE_KEY gerekli ve şema kurulmalı.</div>';
+    }
+    if (!s.hasAnthropic) {
+      $('testNote').innerHTML = '<div class="note">ANTHROPIC_API_KEY bağlı değil (.env eksik). Sohbet için gerekli.</div>';
+    }
+    return s;
+  } catch (e) { toast(e.message, true); return {}; }
+}
+function setPill(id, ok, label) {
+  const el = $(id);
+  el.className = 'pill ' + (ok ? 'ok' : 'bad');
+  el.innerHTML = '<span class="dot"></span>' + label + (ok ? '' : ' ✗');
+}
+
+// ---- Konuşmalar ----
+async function loadConversations() {
+  const box = $('cv-list');
+  try {
+    const list = await api('/api/conversations');
+    if (!list.length) { box.innerHTML = '<div class="empty">Henüz konuşma yok.</div>'; return; }
+    box.innerHTML = list.map((c) => `
+      <div class="item">
+        <div class="main">
+          <div class="t">${esc(c.title || c.slug)}</div>
+          <div class="m">
+            <span class="tag">${esc(c.outcome)}</span>
+            <span class="tag">${c.message_count} mesaj</span>
+            ${(c.tags || []).map((t) => '<span class="tag">' + esc(t) + '</span>').join('')}
+          </div>
+        </div>
+        <button class="btn link" data-edit="${c.id}">Düzenle</button>
+        <button class="btn link del" data-del="${c.id}">Sil</button>
+      </div>`).join('');
+    box.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => editConversation(b.dataset.edit)));
+    box.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => delConversation(b.dataset.del)));
+  } catch (e) { box.innerHTML = '<div class="empty">Yüklenemedi: ' + esc(e.message) + '</div>'; }
+}
+function clearConversationForm() {
+  ['cv-slug', 'cv-title', 'cv-tags', 'cv-dialog'].forEach((i) => ($(i).value = ''));
+  $('cv-quality').value = 3; $('cv-channel').value = 'whatsapp'; $('cv-outcome').value = 'sold';
+  $('cv-editing').textContent = '';
+}
+async function editConversation(id) {
+  try {
+    const { conversation: c, dialog } = await api('/api/conversations/' + id);
+    $('cv-slug').value = c.slug; $('cv-title').value = c.title || '';
+    $('cv-channel').value = c.channel || 'whatsapp'; $('cv-outcome').value = c.outcome || 'unknown';
+    $('cv-quality').value = c.quality || 3; $('cv-tags').value = (c.tags || []).join(', ');
+    $('cv-dialog').value = dialog.map((m) => (m.speaker === 'customer' ? 'Müşteri' : 'Ben') + ': ' + m.text).join('\n');
+    $('cv-editing').textContent = 'düzenleniyor: ' + c.slug;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (e) { toast(e.message, true); }
+}
+async function delConversation(id) {
+  if (!confirm('Bu konuşma silinsin mi?')) return;
+  try { await api('/api/conversations/' + id, { method: 'DELETE' }); toast('Silindi'); loadConversations(); }
+  catch (e) { toast(e.message, true); }
+}
+$('cv-save').addEventListener('click', async () => {
+  const body = {
+    slug: $('cv-slug').value, title: $('cv-title').value, channel: $('cv-channel').value,
+    outcome: $('cv-outcome').value, quality: $('cv-quality').value, tags: $('cv-tags').value,
+    dialog: $('cv-dialog').value,
+  };
+  try {
+    await api('/api/conversations', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    toast('Konuşma kaydedildi'); clearConversationForm(); loadConversations();
+  } catch (e) { toast(e.message, true); }
+});
+$('cv-clear').addEventListener('click', clearConversationForm);
+
+// ---- Ürünler ----
+async function loadProducts() {
+  const box = $('pr-list');
+  try {
+    const list = await api('/api/products');
+    if (!list.length) { box.innerHTML = '<div class="empty">Henüz ürün yok.</div>'; return; }
+    box.innerHTML = list.map((p) => `
+      <div class="item">
+        <div class="main">
+          <div class="t">${esc(p.name)} ${p.price != null ? '· ' + esc(p.price) + ' ' + esc(p.currency || 'TRY') : ''}</div>
+          <div class="m">${p.category ? '<span class="tag">' + esc(p.category) + '</span>' : ''}${p.good_for ? esc(p.good_for) : ''}</div>
+        </div>
+        <button class="btn link" data-pedit='${esc(JSON.stringify(p))}'>Düzenle</button>
+        <button class="btn link del" data-pdel="${p.id}">Sil</button>
+      </div>`).join('');
+    box.querySelectorAll('[data-pedit]').forEach((b) => b.addEventListener('click', () => editProduct(JSON.parse(b.dataset.pedit))));
+    box.querySelectorAll('[data-pdel]').forEach((b) => b.addEventListener('click', () => delProduct(b.dataset.pdel)));
+  } catch (e) { box.innerHTML = '<div class="empty">Yüklenemedi: ' + esc(e.message) + '</div>'; }
+}
+function clearProductForm() {
+  ['pr-slug', 'pr-name', 'pr-price', 'pr-category', 'pr-goodfor', 'pr-description'].forEach((i) => ($(i).value = ''));
+  $('pr-currency').value = 'TRY';
+}
+function editProduct(p) {
+  $('pr-slug').value = p.slug; $('pr-name').value = p.name || ''; $('pr-price').value = p.price ?? '';
+  $('pr-currency').value = p.currency || 'TRY'; $('pr-category').value = p.category || '';
+  $('pr-goodfor').value = p.good_for || ''; $('pr-description').value = p.description || '';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function delProduct(id) {
+  if (!confirm('Bu ürün silinsin mi?')) return;
+  try { await api('/api/products/' + id, { method: 'DELETE' }); toast('Silindi'); loadProducts(); }
+  catch (e) { toast(e.message, true); }
+}
+$('pr-save').addEventListener('click', async () => {
+  const body = {
+    slug: $('pr-slug').value, name: $('pr-name').value, price: $('pr-price').value,
+    currency: $('pr-currency').value, category: $('pr-category').value,
+    good_for: $('pr-goodfor').value, description: $('pr-description').value,
+  };
+  try {
+    await api('/api/products', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    toast('Ürün kaydedildi'); clearProductForm(); loadProducts();
+  } catch (e) { toast(e.message, true); }
+});
+$('pr-clear').addEventListener('click', clearProductForm);
+
+// ---- Sohbet ----
+function renderChat() {
+  const box = $('chat');
+  if (!chatMessages.length) { box.innerHTML = '<div class="chat-empty">Müşteri gibi bir mesaj yaz, ikiz cevaplasın.</div>'; return; }
+  box.innerHTML = chatMessages.map((m) =>
+    `<div class="bubble ${m.role}"><div class="who">${m.role === 'user' ? 'Müşteri' : 'İkiz'}</div>${esc(m.content) || '<span style="color:var(--muted)">…</span>'}</div>`).join('');
+  box.scrollTop = box.scrollHeight;
+}
+async function sendChat() {
+  const inp = $('chatInput');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  chatMessages.push({ role: 'user', content: text });
+  const assistant = { role: 'assistant', content: '' };
+  chatMessages.push(assistant);
+  renderChat();
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages: chatMessages.slice(0, -1) }),
+    });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); assistant.content = '[Hata: ' + (j.error || res.status) + ']'; renderChat(); return; }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      assistant.content += dec.decode(value, { stream: true });
+      renderChat();
+    }
+  } catch (e) { assistant.content += ' [bağlantı hatası]'; renderChat(); }
+}
+$('chatSend').addEventListener('click', sendChat);
+$('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+$('chat-new').addEventListener('click', () => { chatMessages = []; renderChat(); });
+
+// ---- Persona + Prompt ----
+async function loadPersona() {
+  try { const { text } = await api('/api/persona'); $('persona').value = text || ''; }
+  catch (e) { toast(e.message, true); }
+}
+$('persona-save').addEventListener('click', async () => {
+  try {
+    await api('/api/persona', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: $('persona').value }) });
+    toast('Persona kaydedildi'); refreshPrompt();
+  } catch (e) { toast(e.message, true); }
+});
+async function refreshPrompt() {
+  $('promptView').textContent = 'Kuruluyor...';
+  try { const { prompt } = await api('/api/system-prompt'); $('promptView').textContent = prompt || '(boş)'; }
+  catch (e) { $('promptView').textContent = 'Hata: ' + e.message; }
+}
+$('prompt-refresh').addEventListener('click', refreshPrompt);
+
+// ---- Başlat ----
+(async function init() {
+  const s = await loadState();
+  renderChat();
+  loadPersona();
+  if (s.hasSupabase) { loadConversations(); loadProducts(); }
+  else {
+    $('cv-list').innerHTML = '<div class="empty">Supabase bağlı değil.</div>';
+    $('pr-list').innerHTML = '<div class="empty">Supabase bağlı değil.</div>';
+  }
+})();
+</script>
+</body>
+</html>
