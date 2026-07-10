@@ -3,51 +3,29 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>qneed · AI İkiz</title>
+<title>AI İkiz Laboratuvarı</title>
 <style>
   :root {
-    --bg: #faf8f5;
-    --card: #ffffff;
-    --ink: #22201d;
-    --muted: #7c766e;
-    --line: #eae5de;
-    --accent: #1f8a70;
-    --accent-soft: #e6f3ef;
-    --danger: #c0442e;
-    --warn-bg: #fdf3e3;
-    --warn-ink: #8a5a12;
-    --radius: 12px;
+    --bg: #faf8f5; --card: #ffffff; --ink: #22201d; --muted: #7c766e; --line: #eae5de;
+    --accent: #1f8a70; --accent-soft: #e6f3ef; --danger: #c0442e;
+    --warn-bg: #fdf3e3; --warn-ink: #8a5a12; --radius: 12px;
     --shadow: 0 1px 3px rgba(0,0,0,.06), 0 6px 20px rgba(0,0,0,.04);
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
-  }
-  header {
-    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-    padding: 14px 22px; background: var(--card); border-bottom: 1px solid var(--line);
-    position: sticky; top: 0; z-index: 10;
-  }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 22px; background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
   .brand { font-weight: 700; font-size: 18px; letter-spacing: -.3px; }
   .brand span { color: var(--accent); }
   .pills { display: flex; gap: 8px; margin-left: auto; }
-  .pill {
-    font-size: 12px; padding: 4px 10px; border-radius: 999px;
-    background: #f1efe9; color: var(--muted); border: 1px solid var(--line);
-    display: flex; align-items: center; gap: 6px;
-  }
+  .pill { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: #f1efe9; color: var(--muted); border: 1px solid var(--line); display: flex; align-items: center; gap: 6px; }
   .pill.ok { background: var(--accent-soft); color: var(--accent); border-color: #cfe8e0; }
   .pill.bad { background: #fbeae6; color: var(--danger); border-color: #f2d3cb; }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-  nav { display: flex; gap: 4px; padding: 10px 22px 0; background: var(--card); border-bottom: 1px solid var(--line); }
-  nav button {
-    border: none; background: none; padding: 10px 16px; font-size: 14px; font-weight: 600;
-    color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0;
-  }
+  nav { display: flex; gap: 4px; padding: 10px 22px 0; background: var(--card); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  nav button { border: none; background: none; padding: 10px 16px; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0; }
   nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
   nav button:hover { color: var(--ink); }
-  main { max-width: 1120px; margin: 0 auto; padding: 22px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 22px; }
   .panel { display: none; }
   .panel.active { display: block; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
@@ -55,22 +33,15 @@
   .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; }
   .card h2 { margin: 0 0 4px; font-size: 16px; }
   .card .sub { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+  .page-head { display: flex; align-items: center; margin-bottom: 6px; }
+  .page-head h2 { margin: 0; font-size: 20px; }
   label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 5px; color: #4a463f; }
-  input, select, textarea {
-    width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px;
-    font: inherit; background: #fff; color: var(--ink);
-  }
+  input, select, textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; font: inherit; background: #fff; color: var(--ink); }
   input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
   textarea { resize: vertical; }
   .row { display: flex; gap: 10px; }
   .row > * { flex: 1; }
-  .check { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
-  .check input { width: auto; }
-  .check label { margin: 0; }
-  .btn {
-    display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border: none; border-radius: 9px;
-    background: var(--accent); color: #fff; font-weight: 600; font-size: 14px; cursor: pointer;
-  }
+  .btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border: none; border-radius: 9px; background: var(--accent); color: #fff; font-weight: 600; font-size: 14px; cursor: pointer; }
   .btn:hover { filter: brightness(1.05); }
   .btn.ghost { background: #f1efe9; color: var(--ink); }
   .btn.small { padding: 5px 10px; font-size: 12px; }
@@ -82,12 +53,28 @@
   .item { display: flex; align-items: center; gap: 10px; padding: 11px 2px; border-bottom: 1px solid var(--line); }
   .item .main { min-width: 0; flex: 1; }
   .item .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .item .m { font-size: 12px; color: var(--muted); }
+  .item .m { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #f1efe9; color: var(--muted); margin-right: 4px; }
-  .tag.ex { background: var(--accent-soft); color: var(--accent); }
   .empty { color: var(--muted); font-size: 13px; padding: 16px 2px; }
   .note { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid #f2e2c4; border-radius: 9px; padding: 10px 12px; font-size: 13px; margin-bottom: 16px; }
-  /* Chat */
+  /* Görünüm sayfaları */
+  .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-top: 14px; }
+  .cat-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; }
+  .cat-card .nm { font-weight: 700; }
+  .cat-card .pr { color: var(--accent); font-weight: 700; margin-top: 2px; }
+  .cat-card .gf { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .cat-card .ds { font-size: 13px; margin-top: 6px; }
+  .vitem { border-bottom: 1px solid var(--line); }
+  .vhead { display: flex; align-items: center; gap: 10px; padding: 12px 4px; cursor: pointer; }
+  .vhead:hover { background: #faf8f5; }
+  .vhead .chev { color: var(--muted); transition: transform .15s; }
+  .vitem.open .vhead .chev { transform: rotate(90deg); }
+  .vbody { padding: 4px 4px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .ro { max-width: 80%; padding: 7px 11px; border-radius: 14px; font-size: 13px; white-space: pre-wrap; word-wrap: break-word; }
+  .ro.cu { background: #f1efe9; align-self: flex-start; border-bottom-left-radius: 4px; }
+  .ro.me { background: var(--accent-soft); align-self: flex-end; border-bottom-right-radius: 4px; }
+  .ro .who { font-size: 10px; font-weight: 700; color: var(--muted); margin-bottom: 1px; }
+  /* Test sohbeti */
   .chat-wrap { max-width: 760px; margin: 0 auto; }
   .chat { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); height: 62vh; min-height: 360px; overflow-y: auto; padding: 16px; }
   .bubble { max-width: 78%; padding: 9px 13px; border-radius: 14px; margin: 8px 0; white-space: pre-wrap; word-wrap: break-word; }
@@ -100,14 +87,28 @@
   .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
   .toolbar .hint { color: var(--muted); font-size: 12px; margin-left: auto; }
   pre.prompt { background: #1e1c1a; color: #e9e4da; border-radius: var(--radius); padding: 16px; overflow: auto; max-height: 60vh; white-space: pre-wrap; word-wrap: break-word; font: 13px/1.55 "SF Mono", Consolas, monospace; }
-  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #22201d; color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; }
+  /* Diyalog sohbet kurucu */
+  .cvchat { height: 250px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: #fbfaf8; display: flex; flex-direction: column; gap: 8px; }
+  .cvb { max-width: 80%; padding: 7px 11px; border-radius: 14px; font-size: 13px; position: relative; white-space: pre-wrap; word-wrap: break-word; }
+  .cvb.cu { background: #f1efe9; align-self: flex-start; border-bottom-left-radius: 4px; }
+  .cvb.me { background: var(--accent-soft); align-self: flex-end; border-bottom-right-radius: 4px; }
+  .cvb .who { font-size: 10px; font-weight: 700; color: var(--muted); margin-bottom: 1px; }
+  .cvb .x { position: absolute; top: -7px; right: -7px; width: 17px; height: 17px; border-radius: 50%; background: #fff; border: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 15px; text-align: center; cursor: pointer; display: none; }
+  .cvb:hover .x { display: block; }
+  .cvchat-empty { color: var(--muted); font-size: 12px; margin: auto; text-align: center; }
+  .cvcomposer { display: flex; gap: 8px; align-items: flex-end; margin-top: 8px; }
+  .cvcomposer textarea { flex: 1; resize: none; min-height: 40px; max-height: 130px; line-height: 1.4; }
+  .who-toggle { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: 0 0 auto; }
+  .who-toggle button { border: none; background: #fff; padding: 9px 12px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--muted); }
+  .who-toggle button.active { background: var(--accent); color: #fff; }
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #22201d; color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 100; }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
   #toast.err { background: var(--danger); }
 </style>
 </head>
 <body>
 <header>
-  <div class="brand">qneed · <span>AI İkiz</span></div>
+  <div class="brand">🧪 AI İkiz <span>Laboratuvarı</span></div>
   <div class="pills">
     <span class="pill" id="pillAnthropic"><span class="dot"></span>Claude</span>
     <span class="pill" id="pillSupabase"><span class="dot"></span>Supabase</span>
@@ -118,52 +119,48 @@
   <button data-tab="veri" class="active">Veri Girişi</button>
   <button data-tab="test">Test Simülasyonu</button>
   <button data-tab="prompt">Sistem Promptu</button>
+  <button data-tab="konusmalar" style="margin-left:auto">Konuşmalar</button>
+  <button data-tab="katalog">Katalog</button>
 </nav>
 
 <main>
-  <!-- ============ VERİ GİRİŞİ ============ -->
+  <!-- ===== VERİ GİRİŞİ (ekle/düzenle) ===== -->
   <section class="panel active" id="panel-veri">
     <div id="veriNote"></div>
     <div class="grid2">
       <!-- Konuşma -->
       <div class="card">
         <h2>Konuşma Ekle</h2>
-        <p class="sub">Geçmiş satış yazışmaların — ikiz tarzını BUNLARDAN öğrenir. Kaydettiğin her konuşma otomatik örnek olur (kalitesi yüksek olanlar öncelikli). Öğrenmesini istemediğin bir konuşmayı kaydetme ya da sil.</p>
+        <p class="sub">Geçmiş satış yazışmaların — ikiz tarzını BUNLARDAN öğrenir. Kaydettiğin her konuşma otomatik örnek olur (kalitesi yüksek olanlar öncelikli).</p>
         <input type="hidden" id="cv-slug" />
         <label>Başlık</label>
         <input id="cv-title" placeholder="ör. Yağlı cilt - serum satışı" />
         <div class="row">
-          <div>
-            <label>Kanal</label>
-            <select id="cv-channel">
-              <option value="whatsapp">WhatsApp</option>
-              <option value="instagram">Instagram</option>
-              <option value="web">Web</option>
-              <option value="other">Diğer</option>
-            </select>
+          <div><label>Kanal</label>
+            <select id="cv-channel"><option value="whatsapp">WhatsApp</option><option value="instagram">Instagram</option><option value="web">Web</option><option value="other">Diğer</option></select>
           </div>
-          <div>
-            <label>Sonuç</label>
-            <select id="cv-outcome">
-              <option value="sold">Satıldı</option>
-              <option value="lost">Kaçtı</option>
-              <option value="open">Açık</option>
-              <option value="unknown">Belirsiz</option>
-            </select>
+          <div><label>Sonuç</label>
+            <select id="cv-outcome"><option value="sold">Satıldı</option><option value="lost">Kaçtı</option><option value="open">Açık</option><option value="unknown">Belirsiz</option></select>
           </div>
-          <div>
-            <label>Kalite (1-5)</label>
-            <input id="cv-quality" type="number" min="1" max="5" value="3" />
-          </div>
+          <div><label>Kalite (1-5)</label><input id="cv-quality" type="number" min="1" max="5" value="3" /></div>
         </div>
         <label>Etiketler (virgülle)</label>
         <input id="cv-tags" placeholder="yağlı cilt, serum, gözenek" />
-        <label>Diyalog</label>
-        <textarea id="cv-dialog" rows="8" placeholder="müşteri: merhaba yağlı cildim var ne önerirsiniz&#10;ben: Merhabaa 🌿 gözenek + yağlanma için Denge Serumu bire bir...&#10;müşteri: fiyatı ne kadar&#10;ben: 450 TL canım..."></textarea>
+        <label>Diyalog <span style="font-weight:400;color:var(--muted);font-size:12px">— kim konuşuyor seç, yaz, Enter</span></label>
+        <div id="cv-chat" class="cvchat"></div>
+        <div class="cvcomposer">
+          <div class="who-toggle">
+            <button type="button" data-r="customer">Müşteri</button>
+            <button type="button" data-r="me">Ben</button>
+          </div>
+          <textarea id="cv-input" rows="1" placeholder="yaz · Enter = ekle · Shift+Enter = alt satır"></textarea>
+          <button type="button" class="btn small" id="cv-add">Ekle</button>
+        </div>
+        <div style="margin-top:6px"><span id="cv-count" style="color:var(--muted);font-size:12px"></span></div>
         <div class="actions">
           <button class="btn" id="cv-save">Kaydet</button>
           <button class="btn ghost" id="cv-clear">Temizle</button>
-          <span id="cv-editing" class="hint" style="color:var(--muted);font-size:12px"></span>
+          <span id="cv-editing" style="color:var(--muted);font-size:12px"></span>
         </div>
         <div class="list" id="cv-list"></div>
       </div>
@@ -176,18 +173,9 @@
         <label>Ürün adı</label>
         <input id="pr-name" placeholder="ör. Denge Serumu" />
         <div class="row">
-          <div>
-            <label>Fiyat</label>
-            <input id="pr-price" type="number" step="0.01" placeholder="450" />
-          </div>
-          <div>
-            <label>Para birimi</label>
-            <input id="pr-currency" value="TRY" />
-          </div>
-          <div>
-            <label>Kategori</label>
-            <input id="pr-category" placeholder="serum" />
-          </div>
+          <div><label>Fiyat</label><input id="pr-price" type="number" step="0.01" placeholder="450" /></div>
+          <div><label>Para birimi</label><input id="pr-currency" value="TRY" /></div>
+          <div><label>Kategori</label><input id="pr-category" placeholder="serum" /></div>
         </div>
         <label>Kime uygun</label>
         <input id="pr-goodfor" placeholder="yağlı ve karma ciltler, gözenek görünümü" />
@@ -202,7 +190,21 @@
     </div>
   </section>
 
-  <!-- ============ TEST ============ -->
+  <!-- ===== KONUŞMALAR (sadece görüntüle) ===== -->
+  <section class="panel" id="panel-konusmalar">
+    <div class="page-head"><h2>Konuşmalar</h2></div>
+    <p class="sub" style="margin:4px 0 14px">Kaydettiğin tüm konuşmalar. İçini okumak için üstüne tıkla. (Düzenleme "Veri Girişi" sekmesinde.)</p>
+    <div class="card"><div id="cv-view-list"></div></div>
+  </section>
+
+  <!-- ===== KATALOG (sadece görüntüle) ===== -->
+  <section class="panel" id="panel-katalog">
+    <div class="page-head"><h2>Katalog</h2></div>
+    <p class="sub" style="margin:4px 0 0">Eklenen ürünler. (Düzenleme "Veri Girişi" sekmesinde.)</p>
+    <div id="pr-view-list" class="cat-grid"></div>
+  </section>
+
+  <!-- ===== TEST ===== -->
   <section class="panel" id="panel-test">
     <div class="chat-wrap">
       <div id="testNote"></div>
@@ -218,22 +220,20 @@
     </div>
   </section>
 
-  <!-- ============ SİSTEM PROMPTU ============ -->
+  <!-- ===== SİSTEM PROMPTU ===== -->
   <section class="panel" id="panel-prompt">
     <div class="card" style="margin-bottom:18px">
       <h2>İşletme notu (opsiyonel)</h2>
       <p class="sub">Sadece bilgi: marka adı, ne sattığın, özel bir kural vb. <b>Tarzını BURAYA yazma</b> — ikiz yazışma tarzını senin kaydettiğin konuşmalardan öğrenir. Boş bırakabilirsin.</p>
       <textarea id="persona" rows="6" placeholder="ör. Marka: Qneed Cosmetics. Doğal içerikli cilt bakımı satıyoruz. Kargo 2-3 gün."></textarea>
-      <div class="actions">
-        <button class="btn" id="persona-save">Notu kaydet</button>
-      </div>
+      <div class="actions"><button class="btn" id="persona-save">Notu kaydet</button></div>
     </div>
     <div class="card">
       <div class="toolbar">
         <h2 style="margin:0">Kurulan sistem promptu</h2>
         <button class="btn ghost small" id="prompt-refresh" style="margin-left:auto">Yenile</button>
       </div>
-      <p class="sub">Persona + satış oyun kitabı + kurallar + katalog + gerçek konuşma örneklerinden otomatik kurulur.</p>
+      <p class="sub">Rol + satış oyun kitabı + kurallar + katalog + gerçek konuşma örneklerinden otomatik kurulur.</p>
       <pre class="prompt" id="promptView">Yenile'ye bas...</pre>
     </div>
   </section>
@@ -244,10 +244,11 @@
 <script>
 const $ = (id) => document.getElementById(id);
 let chatMessages = [];
+let cvMsgs = [];
+let cvRole = 'customer';
 
 function toast(msg, err) {
-  const t = $('toast');
-  t.textContent = msg; t.className = 'show' + (err ? ' err' : '');
+  const t = $('toast'); t.textContent = msg; t.className = 'show' + (err ? ' err' : '');
   setTimeout(() => (t.className = ''), 2600);
 }
 async function api(path, opts) {
@@ -267,6 +268,8 @@ document.querySelectorAll('nav button').forEach((b) =>
     b.classList.add('active');
     $('panel-' + b.dataset.tab).classList.add('active');
     if (b.dataset.tab === 'prompt') refreshPrompt();
+    if (b.dataset.tab === 'konusmalar') loadConversationsView();
+    if (b.dataset.tab === 'katalog') loadProductsView();
   }),
 );
 
@@ -276,22 +279,17 @@ async function loadState() {
     const s = await api('/api/state');
     setPill('pillAnthropic', s.hasAnthropic, 'Claude');
     setPill('pillSupabase', s.hasSupabase, 'Supabase');
-    if (!s.hasSupabase) {
-      $('veriNote').innerHTML = '<div class="note">Supabase bağlı değil (.env eksik). Veri kaydı için SUPABASE_URL + SUPABASE_SERVICE_KEY gerekli ve şema kurulmalı.</div>';
-    }
-    if (!s.hasAnthropic) {
-      $('testNote').innerHTML = '<div class="note">ANTHROPIC_API_KEY bağlı değil (.env eksik). Sohbet için gerekli.</div>';
-    }
+    if (!s.hasSupabase) $('veriNote').innerHTML = '<div class="note">Supabase bağlı değil (.env eksik). Veri için SUPABASE_URL + SUPABASE_SERVICE_KEY gerekli ve şema kurulmalı.</div>';
+    if (!s.hasAnthropic) $('testNote').innerHTML = '<div class="note">ANTHROPIC_API_KEY bağlı değil (.env eksik). Sohbet için gerekli.</div>';
     return s;
   } catch (e) { toast(e.message, true); return {}; }
 }
 function setPill(id, ok, label) {
-  const el = $(id);
-  el.className = 'pill ' + (ok ? 'ok' : 'bad');
+  const el = $(id); el.className = 'pill ' + (ok ? 'ok' : 'bad');
   el.innerHTML = '<span class="dot"></span>' + label + (ok ? '' : ' ✗');
 }
 
-// ---- Konuşmalar ----
+// ---- Konuşmalar: ekle/düzenle listesi (Veri Girişi) ----
 async function loadConversations() {
   const box = $('cv-list');
   try {
@@ -301,11 +299,7 @@ async function loadConversations() {
       <div class="item">
         <div class="main">
           <div class="t">${esc(c.title || c.slug)}</div>
-          <div class="m">
-            <span class="tag">${esc(c.outcome)}</span>
-            <span class="tag">${c.message_count} mesaj</span>
-            ${(c.tags || []).map((t) => '<span class="tag">' + esc(t) + '</span>').join('')}
-          </div>
+          <div class="m"><span class="tag">${esc(c.outcome)}</span><span class="tag">${c.message_count} mesaj</span>${(c.tags || []).map((t) => '<span class="tag">' + esc(t) + '</span>').join('')}</div>
         </div>
         <button class="btn link" data-edit="${c.id}">Düzenle</button>
         <button class="btn link del" data-del="${c.id}">Sil</button>
@@ -315,9 +309,10 @@ async function loadConversations() {
   } catch (e) { box.innerHTML = '<div class="empty">Yüklenemedi: ' + esc(e.message) + '</div>'; }
 }
 function clearConversationForm() {
-  ['cv-slug', 'cv-title', 'cv-tags', 'cv-dialog'].forEach((i) => ($(i).value = ''));
+  ['cv-slug', 'cv-title', 'cv-tags'].forEach((i) => ($(i).value = ''));
   $('cv-quality').value = 3; $('cv-channel').value = 'whatsapp'; $('cv-outcome').value = 'sold';
   $('cv-editing').textContent = '';
+  cvMsgs = []; cvRole = 'customer'; renderCvChat();
 }
 async function editConversation(id) {
   try {
@@ -325,7 +320,9 @@ async function editConversation(id) {
     $('cv-slug').value = c.slug; $('cv-title').value = c.title || '';
     $('cv-channel').value = c.channel || 'whatsapp'; $('cv-outcome').value = c.outcome || 'unknown';
     $('cv-quality').value = c.quality || 3; $('cv-tags').value = (c.tags || []).join(', ');
-    $('cv-dialog').value = dialog.map((m) => (m.speaker === 'customer' ? 'Müşteri' : 'Ben') + ': ' + m.text).join('\n');
+    cvMsgs = dialog.map((m) => ({ speaker: m.speaker, text: m.text }));
+    cvRole = cvMsgs.length && cvMsgs[cvMsgs.length - 1].speaker === 'customer' ? 'me' : 'customer';
+    renderCvChat();
     $('cv-editing').textContent = 'düzenleniyor: ' + c.slug;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (e) { toast(e.message, true); }
@@ -335,20 +332,54 @@ async function delConversation(id) {
   try { await api('/api/conversations/' + id, { method: 'DELETE' }); toast('Silindi'); loadConversations(); }
   catch (e) { toast(e.message, true); }
 }
+$('cv-clear').addEventListener('click', clearConversationForm);
 $('cv-save').addEventListener('click', async () => {
+  const dialogText = buildDialogText();
+  if (!dialogText) { toast('En az bir mesaj yaz.', true); return; }
   const body = {
     slug: $('cv-slug').value, title: $('cv-title').value, channel: $('cv-channel').value,
     outcome: $('cv-outcome').value, quality: $('cv-quality').value, tags: $('cv-tags').value,
-    dialog: $('cv-dialog').value,
+    dialog: dialogText,
   };
   try {
     await api('/api/conversations', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     toast('Konuşma kaydedildi'); clearConversationForm(); loadConversations();
   } catch (e) { toast(e.message, true); }
 });
-$('cv-clear').addEventListener('click', clearConversationForm);
 
-// ---- Ürünler ----
+// ---- Diyalog sohbet kurucu ----
+function renderCvChat() {
+  const box = $('cv-chat');
+  if (!cvMsgs.length) {
+    box.innerHTML = '<div class="cvchat-empty">Kim konuşuyor seç → yaz → Enter.<br>Her mesajdan sonra taraf otomatik değişir.</div>';
+  } else {
+    box.innerHTML = cvMsgs.map((m, i) =>
+      `<div class="cvb ${m.speaker === 'customer' ? 'cu' : 'me'}"><div class="who">${m.speaker === 'customer' ? 'Müşteri' : 'Ben'}</div>${esc(m.text)}<span class="x" data-i="${i}">×</span></div>`).join('');
+    box.querySelectorAll('.x').forEach((x) => x.addEventListener('click', () => { cvMsgs.splice(Number(x.dataset.i), 1); renderCvChat(); }));
+    box.scrollTop = box.scrollHeight;
+  }
+  $('cv-count').textContent = cvMsgs.length ? cvMsgs.length + ' mesaj' : '';
+  document.querySelectorAll('.who-toggle button').forEach((b) => b.classList.toggle('active', b.dataset.r === cvRole));
+}
+function cvAdd() {
+  const inp = $('cv-input'); const t = inp.value.trim(); if (!t) return;
+  cvMsgs.push({ speaker: cvRole, text: t }); inp.value = ''; inp.style.height = 'auto';
+  cvRole = cvRole === 'customer' ? 'me' : 'customer';
+  renderCvChat(); inp.focus();
+}
+function cvAutoGrow() { const el = $('cv-input'); el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 130) + 'px'; }
+function buildDialogText() {
+  return cvMsgs.filter((m) => m.text.trim())
+    .map((m) => (m.speaker === 'customer' ? 'müşteri' : 'ben') + ': ' + m.text.trim())
+    .join('\n');
+}
+$('cv-add').addEventListener('click', cvAdd);
+$('cv-input').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); cvAdd(); } });
+$('cv-input').addEventListener('input', cvAutoGrow);
+document.querySelectorAll('.who-toggle button').forEach((b) =>
+  b.addEventListener('click', () => { cvRole = b.dataset.r; renderCvChat(); $('cv-input').focus(); }));
+
+// ---- Ürünler: ekle/düzenle listesi (Veri Girişi) ----
 async function loadProducts() {
   const box = $('pr-list');
   try {
@@ -382,6 +413,7 @@ async function delProduct(id) {
   try { await api('/api/products/' + id, { method: 'DELETE' }); toast('Silindi'); loadProducts(); }
   catch (e) { toast(e.message, true); }
 }
+$('pr-clear').addEventListener('click', clearProductForm);
 $('pr-save').addEventListener('click', async () => {
   const body = {
     slug: $('pr-slug').value, name: $('pr-name').value, price: $('pr-price').value,
@@ -393,9 +425,60 @@ $('pr-save').addEventListener('click', async () => {
     toast('Ürün kaydedildi'); clearProductForm(); loadProducts();
   } catch (e) { toast(e.message, true); }
 });
-$('pr-clear').addEventListener('click', clearProductForm);
 
-// ---- Sohbet ----
+// ---- Görüntüleme: Konuşmalar sayfası (salt okunur, açılır) ----
+async function loadConversationsView() {
+  const box = $('cv-view-list');
+  try {
+    const list = await api('/api/conversations');
+    if (!list.length) { box.innerHTML = '<div class="empty">Henüz konuşma yok.</div>'; return; }
+    box.innerHTML = list.map((c) => `
+      <div class="vitem" data-id="${c.id}">
+        <div class="vhead">
+          <div class="main">
+            <div class="t">${esc(c.title || c.slug)}</div>
+            <div class="m"><span class="tag">${esc(c.outcome)}</span><span class="tag">${c.message_count} mesaj</span>${(c.tags || []).map((t) => '<span class="tag">' + esc(t) + '</span>').join('')}</div>
+          </div>
+          <span class="chev">›</span>
+        </div>
+        <div class="vbody" style="display:none"></div>
+      </div>`).join('');
+    box.querySelectorAll('.vhead').forEach((h) => h.addEventListener('click', () => toggleConversationView(h.closest('.vitem'))));
+  } catch (e) { box.innerHTML = '<div class="empty">Yüklenemedi: ' + esc(e.message) + '</div>'; }
+}
+async function toggleConversationView(item) {
+  const body = item.querySelector('.vbody');
+  const open = item.classList.toggle('open');
+  if (!open) { body.style.display = 'none'; return; }
+  body.style.display = 'flex';
+  if (body.dataset.loaded) return;
+  body.innerHTML = '<div class="empty">yükleniyor...</div>';
+  try {
+    const { dialog } = await api('/api/conversations/' + item.dataset.id);
+    body.innerHTML = dialog.map((m) =>
+      `<div class="ro ${m.speaker === 'customer' ? 'cu' : 'me'}"><div class="who">${m.speaker === 'customer' ? 'Müşteri' : 'Ben'}</div>${esc(m.text)}</div>`).join('') || '<div class="empty">boş</div>';
+    body.dataset.loaded = '1';
+  } catch (e) { body.innerHTML = '<div class="empty">Yüklenemedi: ' + esc(e.message) + '</div>'; }
+}
+
+// ---- Görüntüleme: Katalog sayfası (salt okunur kartlar) ----
+async function loadProductsView() {
+  const box = $('pr-view-list');
+  try {
+    const list = await api('/api/products');
+    if (!list.length) { box.innerHTML = '<div class="empty">Henüz ürün yok.</div>'; return; }
+    box.innerHTML = list.map((p) => `
+      <div class="cat-card">
+        <div class="nm">${esc(p.name)}</div>
+        ${p.price != null ? '<div class="pr">' + esc(p.price) + ' ' + esc(p.currency || 'TRY') + '</div>' : ''}
+        ${p.category ? '<div style="margin-top:6px"><span class="tag">' + esc(p.category) + '</span></div>' : ''}
+        ${p.good_for ? '<div class="gf">Kime uygun: ' + esc(p.good_for) + '</div>' : ''}
+        ${p.description ? '<div class="ds">' + esc(p.description) + '</div>' : ''}
+      </div>`).join('');
+  } catch (e) { box.innerHTML = '<div class="empty">Yüklenemedi: ' + esc(e.message) + '</div>'; }
+}
+
+// ---- Test sohbeti ----
 function renderChat() {
   const box = $('chat');
   if (!chatMessages.length) { box.innerHTML = '<div class="chat-empty">Müşteri gibi bir mesaj yaz, ikiz cevaplasın.</div>'; return; }
@@ -404,28 +487,15 @@ function renderChat() {
   box.scrollTop = box.scrollHeight;
 }
 async function sendChat() {
-  const inp = $('chatInput');
-  const text = inp.value.trim();
-  if (!text) return;
+  const inp = $('chatInput'); const text = inp.value.trim(); if (!text) return;
   inp.value = '';
   chatMessages.push({ role: 'user', content: text });
-  const assistant = { role: 'assistant', content: '' };
-  chatMessages.push(assistant);
-  renderChat();
+  const assistant = { role: 'assistant', content: '' }; chatMessages.push(assistant); renderChat();
   try {
-    const res = await fetch('/api/chat', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ messages: chatMessages.slice(0, -1) }),
-    });
+    const res = await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: chatMessages.slice(0, -1) }) });
     if (!res.ok) { const j = await res.json().catch(() => ({})); assistant.content = '[Hata: ' + (j.error || res.status) + ']'; renderChat(); return; }
-    const reader = res.body.getReader();
-    const dec = new TextDecoder();
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      assistant.content += dec.decode(value, { stream: true });
-      renderChat();
-    }
+    const reader = res.body.getReader(); const dec = new TextDecoder();
+    while (true) { const { value, done } = await reader.read(); if (done) break; assistant.content += dec.decode(value, { stream: true }); renderChat(); }
   } catch (e) { assistant.content += ' [bağlantı hatası]'; renderChat(); }
 }
 $('chatSend').addEventListener('click', sendChat);
@@ -440,7 +510,7 @@ async function loadPersona() {
 $('persona-save').addEventListener('click', async () => {
   try {
     await api('/api/persona', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: $('persona').value }) });
-    toast('Persona kaydedildi'); refreshPrompt();
+    toast('Not kaydedildi'); refreshPrompt();
   } catch (e) { toast(e.message, true); }
 });
 async function refreshPrompt() {
@@ -454,6 +524,7 @@ $('prompt-refresh').addEventListener('click', refreshPrompt);
 (async function init() {
   const s = await loadState();
   renderChat();
+  renderCvChat();
   loadPersona();
   if (s.hasSupabase) { loadConversations(); loadProducts(); }
   else {
