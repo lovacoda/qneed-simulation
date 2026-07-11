@@ -2,7 +2,13 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { getAnthropic, buildSystemPrompt } from './brain';
+import {
+  getAnthropic,
+  buildSystemPrompt,
+  readInstructions,
+  writeInstructions,
+  DEFAULT_INSTRUCTIONS,
+} from './brain';
 import { getSupabase } from './supabase';
 import { MODEL, ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY } from './config';
 import { parseDialog, parseTags, slugify } from './parse';
@@ -90,6 +96,21 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // --- Ana talimatlar (düzenlenebilir: data/prompt.md) ---
+    if (p === '/api/prompt') {
+      if (method === 'GET') {
+        return sendJson(res, 200, {
+          text: readInstructions(),
+          default: DEFAULT_INSTRUCTIONS,
+        });
+      }
+      if (method === 'POST') {
+        const b = await readJson(req);
+        writeInstructions(typeof b.text === 'string' ? b.text : '');
+        return sendJson(res, 200, { ok: true });
+      }
+    }
+
     // --- Kurulan sistem promptu (önizleme) ---
     if (method === 'GET' && p === '/api/system-prompt') {
       const prompt = await buildSystemPrompt();
@@ -150,8 +171,7 @@ const server = http.createServer(async (req, res) => {
         await upsertProduct(supabase, {
           slug,
           name: String(b.name).trim(),
-          price: b.price === '' || b.price == null ? null : Number(b.price),
-          currency: b.currency || 'TRY',
+          price: null,
           category: b.category || null,
           good_for: b.good_for || null,
           description: b.description || null,

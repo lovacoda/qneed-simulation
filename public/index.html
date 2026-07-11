@@ -168,15 +168,12 @@
       <!-- Ürün -->
       <div class="card">
         <h2>Ürün Ekle</h2>
-        <p class="sub">İkiz sadece buradaki ürünleri ve fiyatları önerir.</p>
+        <p class="sub">İkiz sadece buradaki ürünleri önerir. Fiyat tutulmaz.</p>
         <input type="hidden" id="pr-slug" />
         <label>Ürün adı</label>
         <input id="pr-name" placeholder="ör. Denge Serumu" />
-        <div class="row">
-          <div><label>Fiyat</label><input id="pr-price" type="number" step="0.01" placeholder="450" /></div>
-          <div><label>Para birimi</label><input id="pr-currency" value="TRY" /></div>
-          <div><label>Kategori</label><input id="pr-category" placeholder="serum" /></div>
-        </div>
+        <label>Kategori</label>
+        <input id="pr-category" placeholder="serum" />
         <label>Kime uygun</label>
         <input id="pr-goodfor" placeholder="yağlı ve karma ciltler, gözenek görünümü" />
         <label>Açıklama</label>
@@ -222,6 +219,15 @@
 
   <!-- ===== SİSTEM PROMPTU ===== -->
   <section class="panel" id="panel-prompt">
+    <div class="card" style="margin-bottom:18px">
+      <div class="toolbar">
+        <h2 style="margin:0">Ana talimatlar (rol + oyun kitabı + kurallar)</h2>
+        <button class="btn ghost small" id="instructions-default" style="margin-left:auto">Varsayılana döndür</button>
+      </div>
+      <p class="sub">İkizin rolü, satış akışı ve kuralları — doğrudan düzenle. Katalog ve konuşma örnekleri buna otomatik eklenir; onları buraya yazma. Kaydedince "Kurulan sistem promptu"na yansır.</p>
+      <textarea id="instructions" rows="18" style="font-family:'SF Mono',Consolas,monospace;font-size:13px"></textarea>
+      <div class="actions"><button class="btn" id="instructions-save">Talimatları kaydet</button></div>
+    </div>
     <div class="card" style="margin-bottom:18px">
       <h2>İşletme notu (opsiyonel)</h2>
       <p class="sub">Sadece bilgi: marka adı, ne sattığın, özel bir kural vb. <b>Tarzını BURAYA yazma</b> — ikiz yazışma tarzını senin kaydettiğin konuşmalardan öğrenir. Boş bırakabilirsin.</p>
@@ -388,7 +394,7 @@ async function loadProducts() {
     box.innerHTML = list.map((p) => `
       <div class="item">
         <div class="main">
-          <div class="t">${esc(p.name)} ${p.price != null ? '· ' + esc(p.price) + ' ' + esc(p.currency || 'TRY') : ''}</div>
+          <div class="t">${esc(p.name)}</div>
           <div class="m">${p.category ? '<span class="tag">' + esc(p.category) + '</span>' : ''}${p.good_for ? esc(p.good_for) : ''}</div>
         </div>
         <button class="btn link" data-pedit='${esc(JSON.stringify(p))}'>Düzenle</button>
@@ -399,12 +405,10 @@ async function loadProducts() {
   } catch (e) { box.innerHTML = '<div class="empty">Yüklenemedi: ' + esc(e.message) + '</div>'; }
 }
 function clearProductForm() {
-  ['pr-slug', 'pr-name', 'pr-price', 'pr-category', 'pr-goodfor', 'pr-description'].forEach((i) => ($(i).value = ''));
-  $('pr-currency').value = 'TRY';
+  ['pr-slug', 'pr-name', 'pr-category', 'pr-goodfor', 'pr-description'].forEach((i) => ($(i).value = ''));
 }
 function editProduct(p) {
-  $('pr-slug').value = p.slug; $('pr-name').value = p.name || ''; $('pr-price').value = p.price ?? '';
-  $('pr-currency').value = p.currency || 'TRY'; $('pr-category').value = p.category || '';
+  $('pr-slug').value = p.slug; $('pr-name').value = p.name || ''; $('pr-category').value = p.category || '';
   $('pr-goodfor').value = p.good_for || ''; $('pr-description').value = p.description || '';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -416,8 +420,7 @@ async function delProduct(id) {
 $('pr-clear').addEventListener('click', clearProductForm);
 $('pr-save').addEventListener('click', async () => {
   const body = {
-    slug: $('pr-slug').value, name: $('pr-name').value, price: $('pr-price').value,
-    currency: $('pr-currency').value, category: $('pr-category').value,
+    slug: $('pr-slug').value, name: $('pr-name').value, category: $('pr-category').value,
     good_for: $('pr-goodfor').value, description: $('pr-description').value,
   };
   try {
@@ -470,7 +473,6 @@ async function loadProductsView() {
     box.innerHTML = list.map((p) => `
       <div class="cat-card">
         <div class="nm">${esc(p.name)}</div>
-        ${p.price != null ? '<div class="pr">' + esc(p.price) + ' ' + esc(p.currency || 'TRY') + '</div>' : ''}
         ${p.category ? '<div style="margin-top:6px"><span class="tag">' + esc(p.category) + '</span></div>' : ''}
         ${p.good_for ? '<div class="gf">Kime uygun: ' + esc(p.good_for) + '</div>' : ''}
         ${p.description ? '<div class="ds">' + esc(p.description) + '</div>' : ''}
@@ -513,6 +515,26 @@ $('persona-save').addEventListener('click', async () => {
     toast('Not kaydedildi'); refreshPrompt();
   } catch (e) { toast(e.message, true); }
 });
+// ---- Ana talimatlar (düzenlenebilir) ----
+let defaultInstructions = '';
+async function loadInstructions() {
+  try {
+    const { text, default: def } = await api('/api/prompt');
+    defaultInstructions = def || '';
+    $('instructions').value = text || '';
+  } catch (e) { toast(e.message, true); }
+}
+$('instructions-save').addEventListener('click', async () => {
+  try {
+    await api('/api/prompt', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: $('instructions').value }) });
+    toast('Talimatlar kaydedildi'); refreshPrompt();
+  } catch (e) { toast(e.message, true); }
+});
+$('instructions-default').addEventListener('click', () => {
+  if (!confirm('Talimatlar varsayılana dönsün mü? (Kaydedene kadar kalıcı olmaz.)')) return;
+  $('instructions').value = defaultInstructions;
+  toast('Varsayılan yüklendi — kaydetmeyi unutma');
+});
 async function refreshPrompt() {
   $('promptView').textContent = 'Kuruluyor...';
   try { const { prompt } = await api('/api/system-prompt'); $('promptView').textContent = prompt || '(boş)'; }
@@ -526,6 +548,7 @@ $('prompt-refresh').addEventListener('click', refreshPrompt);
   renderChat();
   renderCvChat();
   loadPersona();
+  loadInstructions();
   if (s.hasSupabase) { loadConversations(); loadProducts(); }
   else {
     $('cv-list').innerHTML = '<div class="empty">Supabase bağlı değil.</div>';

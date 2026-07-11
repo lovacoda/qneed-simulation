@@ -40,11 +40,31 @@ const PLAYBOOK = `### SATIŞ OYUN KİTABI
 const GUARDRAILS = `### KURALLAR (kesinlikle uy)
 - Sağlık/tıbbi iddia YASAK: "hastalığı iyileştirir/tedavi eder" deme. Sadece kozmetik fayda.
 - Alerji, gebelik, cilt hastalığı, ilaç durumunda dermatoloğa/uzmana yönlendir.
-- Fiyat uydurma. Sadece katalogdaki fiyatları söyle. Katalogda yoksa "kontrol edip döneyim" de.
+- Fiyat UYDURMA. Katalogda fiyat tutulmuyor; fiyat sorulursa "fiyatı kontrol edip hemen döneyim" de.
 - Katalogda olmayan ürünü varmış gibi anlatma.
 - Gereksiz kişisel veri isteme (KVKK). Sadece siparişi tamamlamak için gerekeni iste.
 - Karmaşık şikayet, iade, ödeme sorunu → "sizi ekibimize aktarıyorum" diyerek insana devret.
 - Dürüst ol: ürün müşteriye uygun değilse açıkça söyle.`;
+
+// Düzenlenebilir ana talimatlar (rol + oyun kitabı + kurallar). Kullanıcı arayüzden
+// değiştirirse data/prompt.md dosyasına yazılır; dosya yoksa aşağıdaki varsayılan kullanılır.
+const INSTRUCTIONS_PATH = path.resolve(process.cwd(), 'data/prompt.md');
+
+export const DEFAULT_INSTRUCTIONS = [ROLE, PLAYBOOK, GUARDRAILS].join('\n\n');
+
+export function readInstructions(): string {
+  try {
+    const t = fs.readFileSync(INSTRUCTIONS_PATH, 'utf8').trim();
+    return t || DEFAULT_INSTRUCTIONS;
+  } catch {
+    return DEFAULT_INSTRUCTIONS;
+  }
+}
+
+export function writeInstructions(text: string): void {
+  fs.mkdirSync(path.dirname(INSTRUCTIONS_PATH), { recursive: true });
+  fs.writeFileSync(INSTRUCTIONS_PATH, typeof text === 'string' ? text : '', 'utf8');
+}
 
 // İsteğe bağlı işletme notu (data/persona.md). Tarz DEĞİL — sadece marka/işletme bilgisi.
 function readBusinessNote(): string {
@@ -62,7 +82,6 @@ async function loadProducts(): Promise<string> {
     const { data, error } = await supabase.from('products').select('*').order('name');
     if (error || !data || data.length === 0) return '';
     const lines = data.map((p) => {
-      const price = p.price != null ? `${p.price} ${p.currency ?? 'TRY'}` : 'fiyat: kontrol et';
       const extra = [
         p.category ? `(${p.category})` : null,
         p.good_for ? `Kime uygun: ${p.good_for}` : null,
@@ -70,9 +89,9 @@ async function loadProducts(): Promise<string> {
       ]
         .filter(Boolean)
         .join(' — ');
-      return `- ${p.name} — ${price}${extra ? ' — ' + extra : ''}`;
+      return `- ${p.name}${extra ? ' — ' + extra : ''}`;
     });
-    return `### ÜRÜN KATALOĞU (SADECE bunları öner, fiyatları buradan söyle)\n${lines.join('\n')}`;
+    return `### ÜRÜN KATALOĞU (SADECE bunları öner)\n${lines.join('\n')}`;
   } catch {
     return '';
   }
@@ -121,12 +140,11 @@ async function loadStyleExamples(): Promise<string> {
 
 export async function buildSystemPrompt(): Promise<string> {
   const note = readBusinessNote();
+  const instructions = readInstructions();
   const [products, examples] = await Promise.all([loadProducts(), loadStyleExamples()]);
   return [
-    ROLE,
+    instructions,
     note ? `### İŞLETME NOTU (bilgi — tarz değil)\n${note}` : '',
-    PLAYBOOK,
-    GUARDRAILS,
     products,
     examples,
   ]
