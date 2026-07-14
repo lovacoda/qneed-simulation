@@ -112,8 +112,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     // --- Kurulan sistem promptu (önizleme) ---
+    // ?q=... verilirse örnekler o müşteri mesajına göre (RAG) seçilir; yoksa
+    // kaliteye göre temsili set gösterilir.
     if (method === 'GET' && p === '/api/system-prompt') {
-      const prompt = await buildSystemPrompt();
+      const q = url.searchParams.get('q') || undefined;
+      const prompt = await buildSystemPrompt(q);
       return sendJson(res, 200, { prompt });
     }
 
@@ -194,7 +197,11 @@ const server = http.createServer(async (req, res) => {
       const b = await readJson(req);
       const messages = Array.isArray(b.messages) ? b.messages : [];
       const anthropic = getAnthropic(); // anahtar yoksa fırlatır -> aşağıda JSON hata
-      const system = await buildSystemPrompt();
+      // Örnekleri o anki müşteri mesajına göre seç (RAG): son "user" mesajı sorgu.
+      const lastCustomer = [...messages]
+        .reverse()
+        .find((m) => m && m.role === 'user' && typeof m.content === 'string')?.content;
+      const system = await buildSystemPrompt(lastCustomer);
       res.writeHead(200, {
         'content-type': 'text/plain; charset=utf-8',
         'cache-control': 'no-cache',

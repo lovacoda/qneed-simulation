@@ -1,6 +1,7 @@
 // Supabase okuma/yazma katmanı. Hem CLI ingest hem web arayüzü aynı fonksiyonları kullanır.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Msg } from './parse';
+import { embedOne, embeddingEnabled } from './embed';
 
 export interface ConversationInput {
   slug: string;
@@ -50,7 +51,69 @@ export async function upsertConversation(
     const { error: mErr } = await supabase.from('messages').insert(rows);
     if (mErr) throw new Error(mErr.message);
   }
+
+  // Anlam parmak izini tazele. En iyi çaba: anahtar yoksa ya da servis hata
+  // verirse kayıt yine de tamamlanır; parmak izi `npm run embed` ile doldurulur.
+  if (embeddingEnabled()) {
+    try {
+      await updateConversationEmbedding(supabase, id, input.dialog);
+    } catch (e) {
+      console.warn(
+        `[embed] "${input.slug}" gömülemedi (kayıt tamam): ${e instanceof Error ? e.message : e}`,
+      );
+    }
+  }
   return id;
+}
+
+// Konuşmanın parmak izini üretip yazar. Retrieval anahtarı olarak MÜŞTERİNİN
+// anlattığı durumu kullanırız — gelen sorgu da bir müşteri mesajı olduğu için
+// en isabetli eşleşme bu. Müşteri metni yoksa tüm diyaloğa düşeriz.
+export function conversationEmbedText(dialog: Msg[]): string {
+  const customer = dialog
+    .filter((m) => m.speaker === 'customer')
+    .map((m) => m.text)
+    .join('\n')
+    .trim();
+  if (customer) return customer;
+  return dialog
+    .map((m) => m.text)
+    .join('\n')
+    .trim();
+}
+
+export async function updateConversationEmbedding(
+  supabase: SupabaseClient,
+  id: string,
+  dialog: Msg[],
+): Promise<boolean> {
+  const text = conversationEmbedText(dialog);
+  if (!text) return false;
+  const vec = await embedOne(text, 'document');
+  const { error } = await supabase.from('conversations').update({ embedding: vec }).eq('id', id);
+  if (error) throw new Error(error.message);
+  return true;
+}
+
+export interface ConversationMatch {
+  id: string;
+  title: string | null;
+  outcome: string | null;
+  similarity: number;
+}
+
+// Sorgu vektörüne en yakın konuşmaları döndürür (pgvector RPC — schema.sql).
+export async function matchConversations(
+  supabase: SupabaseClient,
+  queryEmbedding: number[],
+  matchCount: number,
+): Promise<ConversationMatch[]> {
+  const { data, error } = await supabase.rpc('match_conversations', {
+    query_embedding: queryEmbedding,
+    match_count: matchCount,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ConversationMatch[];
 }
 
 export interface ProductInput {

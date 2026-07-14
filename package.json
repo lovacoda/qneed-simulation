@@ -8,6 +8,7 @@
     "ui": "tsx src/ui.ts",
     "chat": "tsx src/chat.ts",
     "ingest": "tsx src/ingest.ts",
+    "embed": "tsx src/embed-cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

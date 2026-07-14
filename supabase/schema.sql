@@ -45,3 +45,42 @@ create table if not exists chat_logs (
   transcript jsonb not null,
   created_at timestamptz default now()
 );
+
+-- ============================================================================
+-- RAG: anlam parmak izi (embedding) ile "duruma uygun" konuşma araması
+-- Gelen müşteri mesajına en yakın konuşmaları bulup sistem promptuna koyarız.
+-- Bu bloğu var olan bir veritabanında yeniden çalıştırmak güvenlidir (idempotent).
+-- NOT: EMBED_DIM ile buradaki vector(1024) aynı olmalı. Voyage voyage-3.5 = 1024.
+-- ============================================================================
+create extension if not exists vector;
+
+alter table conversations add column if not exists embedding vector(1024);
+
+-- Yaklaşık en-yakın-komşu araması için index (kosinüs mesafesi).
+create index if not exists conversations_embedding_idx
+  on conversations using hnsw (embedding vector_cosine_ops);
+
+-- Sorgu vektörüne en yakın konuşmaları benzerlik puanıyla döndürür.
+-- similarity = 1 - kosinüs mesafesi (1'e yakın = çok benzer).
+create or replace function match_conversations(
+  query_embedding vector(1024),
+  match_count int
+)
+returns table (
+  id uuid,
+  title text,
+  outcome text,
+  similarity float
+)
+language sql stable
+as $$
+  select
+    c.id,
+    c.title,
+    c.outcome,
+    1 - (c.embedding <=> query_embedding) as similarity
+  from conversations c
+  where c.embedding is not null
+  order by c.embedding <=> query_embedding
+  limit match_count;
+$$;

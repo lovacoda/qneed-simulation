@@ -8,7 +8,6 @@ const EXIT_WORDS = ['çık', 'cik', 'exit', 'quit', 'q'];
 
 async function main(): Promise<void> {
   const anthropic = getAnthropic();
-  const system = await buildSystemPrompt();
   const messages: Turn[] = [];
 
   const rl = readline.createInterface({ input: stdin, output: stdout });
@@ -22,6 +21,9 @@ async function main(): Promise<void> {
     messages.push({ role: 'user', content: user });
     stdout.write('İkiz    > ');
 
+    // Sistem promptunu her turda güncel mesaja göre kur (RAG): örnekler bu
+    // müşteri mesajına en uygun konuşmalardan seçilir.
+    const system = await buildSystemPrompt(user);
     const stream = anthropic.messages.stream({
       model: MODEL,
       max_tokens: 2000,

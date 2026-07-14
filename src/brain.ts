@@ -3,6 +3,8 @@ import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from './config';
 import { getSupabase } from './supabase';
+import { embedOne, embeddingEnabled } from './embed';
+import { matchConversations } from './store';
 
 export function getAnthropic(): Anthropic {
   if (!ANTHROPIC_API_KEY) {
@@ -97,23 +99,79 @@ async function loadProducts(): Promise<string> {
   }
 }
 
-// Tarz kaynağı: kaydedilen TÜM konuşmalar. Kaliteye göre öncelik, en fazla 8'i
-// prompta girer (bağlam sınırı). Öğrenilmesini istemediğin konuşma = kaydetme/sil.
-async function loadStyleExamples(): Promise<string> {
-  try {
-    const supabase = getSupabase();
+const MAX_EXAMPLES = 8;
+// Bunun altındaki benzerlik "alakasız" sayılır; prompta zorla doldurmayız.
+// Voyage skorları sıkışık aralıkta olduğu için 0.30 seçildi (gerçek testte
+// konunun kendi en iyi eşleşmesi ~0.33 çıkıyordu; 0.35 onu bile eliyordu).
+const SIMILARITY_THRESHOLD = 0.3;
 
-    const { data: convs } = await supabase
+interface ExampleRef {
+  id: string;
+  title: string | null;
+  outcome: string | null;
+}
+
+// Prompta girecek konuşmaları seçer. Öncelik sırası:
+//   1) "örnek" (is_exemplar) işaretli konuşmalar — her zaman girer (elle kürasyon).
+//   2) sorgu varsa: gelen müşteri mesajına anlamca en yakın konuşmalar (RAG).
+//   3) hâlâ boşluk varsa (önizleme, anahtar yok, soğuk başlangıç): kaliteye göre doldur.
+async function pickExamples(supabase: ReturnType<typeof getSupabase>, query?: string): Promise<ExampleRef[]> {
+  const picked: ExampleRef[] = [];
+  const seen = new Set<string>();
+  const add = (c: ExampleRef) => {
+    if (picked.length >= MAX_EXAMPLES || seen.has(c.id)) return;
+    picked.push(c);
+    seen.add(c.id);
+  };
+
+  // 1) İşaretli örnekler her zaman.
+  const { data: exemplars } = await supabase
+    .from('conversations')
+    .select('id,title,outcome')
+    .eq('is_exemplar', true)
+    .order('quality', { ascending: false })
+    .limit(MAX_EXAMPLES);
+  for (const c of exemplars ?? []) add(c as ExampleRef);
+
+  // 2) Alakaya göre (retrieval).
+  if (query && embeddingEnabled() && picked.length < MAX_EXAMPLES) {
+    try {
+      const qvec = await embedOne(query, 'query');
+      const matches = await matchConversations(supabase, qvec, MAX_EXAMPLES * 2);
+      for (const m of matches) {
+        if (picked.length >= MAX_EXAMPLES) break;
+        if (m.similarity < SIMILARITY_THRESHOLD) continue;
+        add({ id: m.id, title: m.title, outcome: m.outcome });
+      }
+    } catch (e) {
+      console.warn(`[retrieval] arama başarısız, kaliteye düşülüyor: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
+  // 3) Kaliteye göre doldur (yedek).
+  if (picked.length < MAX_EXAMPLES) {
+    const { data: byQuality } = await supabase
       .from('conversations')
       .select('id,title,outcome')
       .order('quality', { ascending: false })
       .order('created_at', { ascending: false })
-      .limit(8);
+      .limit(MAX_EXAMPLES);
+    for (const c of byQuality ?? []) add(c as ExampleRef);
+  }
 
-    if (!convs || convs.length === 0) return '';
+  return picked;
+}
+
+// Tarz kaynağı: gelen müşteri mesajına (query) en uygun konuşmalar. Sorgu yoksa
+// kaliteye göre temsili bir set gösterilir. En fazla MAX_EXAMPLES konuşma girer.
+async function loadStyleExamples(query?: string): Promise<string> {
+  try {
+    const supabase = getSupabase();
+    const refs = await pickExamples(supabase, query);
+    if (refs.length === 0) return '';
 
     const blocks: string[] = [];
-    for (const c of convs) {
+    for (const c of refs) {
       const { data: msgs } = await supabase
         .from('messages')
         .select('speaker,text')
@@ -138,10 +196,12 @@ async function loadStyleExamples(): Promise<string> {
   }
 }
 
-export async function buildSystemPrompt(): Promise<string> {
+// query: o anki müşteri mesajı. Verilirse örnekler ona göre seçilir (RAG);
+// verilmezse (önizleme) kaliteye göre temsili bir set gösterilir.
+export async function buildSystemPrompt(query?: string): Promise<string> {
   const note = readBusinessNote();
   const instructions = readInstructions();
-  const [products, examples] = await Promise.all([loadProducts(), loadStyleExamples()]);
+  const [products, examples] = await Promise.all([loadProducts(), loadStyleExamples(query)]);
   return [
     instructions,
     note ? `### İŞLETME NOTU (bilgi — tarz değil)\n${note}` : '',
