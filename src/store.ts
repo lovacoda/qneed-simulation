@@ -83,6 +83,15 @@ export function conversationEmbedText(dialog: Msg[]): string {
     .trim();
 }
 
+export async function setConversationEmbedding(
+  supabase: SupabaseClient,
+  id: string,
+  vec: number[],
+): Promise<void> {
+  const { error } = await supabase.from('conversations').update({ embedding: vec }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
 export async function updateConversationEmbedding(
   supabase: SupabaseClient,
   id: string,
@@ -90,9 +99,7 @@ export async function updateConversationEmbedding(
 ): Promise<boolean> {
   const text = conversationEmbedText(dialog);
   if (!text) return false;
-  const vec = await embedOne(text, 'document');
-  const { error } = await supabase.from('conversations').update({ embedding: vec }).eq('id', id);
-  if (error) throw new Error(error.message);
+  await setConversationEmbedding(supabase, id, await embedOne(text, 'document'));
   return true;
 }
 
