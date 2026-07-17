@@ -84,3 +84,15 @@ as $$
   order by c.embedding <=> query_embedding
   limit match_count;
 $$;
+
+-- ============================================================================
+-- Ürün görselleri: Storage kovası + products.image_url
+-- Görseli veritabanına dosya olarak koymuyoruz; Storage'a koyup public URL'i
+-- saklıyoruz. Instagram/WhatsApp DM API'leri zaten public bir HTTPS linki
+-- istiyor — böylece kayıtlı URL doğrudan gönderime gidebiliyor.
+-- Bu blok idempotent: var olan bir veritabanında tekrar çalıştırılabilir.
+-- ============================================================================
+alter table products add column if not exists image_url text;
+
+-- 'product-images' adlı public kovayı uygulama ilk yüklemede kendisi oluşturur
+-- (src/storage.ts). Burada elle bir şey yapman gerekmiyor.

@@ -2,6 +2,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Msg } from './parse';
 import { embedOne, embeddingEnabled } from './embed';
+import { deleteProductImage } from './storage';
 
 export interface ConversationInput {
   slug: string;
@@ -124,22 +125,32 @@ export interface ProductInput {
   category?: string | null;
   good_for?: string | null;
   description?: string | null;
+  image_url?: string | null;
 }
 
 export async function upsertProduct(supabase: SupabaseClient, p: ProductInput): Promise<void> {
-  const { error } = await supabase.from('products').upsert(
-    {
-      slug: p.slug,
-      name: p.name,
-      price: p.price ?? null,
-      currency: p.currency ?? 'TRY',
-      category: p.category ?? null,
-      good_for: p.good_for ?? null,
-      description: p.description ?? null,
-    },
-    { onConflict: 'slug' },
-  );
+  const row: Record<string, unknown> = {
+    slug: p.slug,
+    name: p.name,
+    price: p.price ?? null,
+    currency: p.currency ?? 'TRY',
+    category: p.category ?? null,
+    good_for: p.good_for ?? null,
+    description: p.description ?? null,
+  };
+  // image_url yalnızca çağıran belirtmişse yazılır. undefined = "dokunma" —
+  // böylece md dosyalarından çalışan ingest, arayüzden eklenmiş bir görseli
+  // silmez. null = "kaldır" (arayüzdeki 'Görseli kaldır' düğmesi).
+  if (p.image_url !== undefined) row.image_url = p.image_url;
+
+  const { error } = await supabase.from('products').upsert(row, { onConflict: 'slug' });
   if (error) throw new Error(error.message);
+}
+
+// Kayıt öncesi eski görseli bilmek için (değişmişse eskisini silebilelim).
+export async function getProductBySlug(supabase: SupabaseClient, slug: string) {
+  const { data } = await supabase.from('products').select('*').eq('slug', slug).maybeSingle();
+  return data;
 }
 
 export async function listConversations(supabase: SupabaseClient) {
@@ -188,6 +199,8 @@ export async function listProducts(supabase: SupabaseClient) {
 }
 
 export async function deleteProduct(supabase: SupabaseClient, id: string): Promise<void> {
+  const { data: prev } = await supabase.from('products').select('image_url').eq('id', id).maybeSingle();
   const { error } = await supabase.from('products').delete().eq('id', id);
   if (error) throw new Error(error.message);
+  await deleteProductImage(supabase, prev?.image_url);
 }

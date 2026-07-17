@@ -72,6 +72,8 @@ async function ingestProducts(supabase: SupabaseClient): Promise<number> {
         category: data.category ?? null,
         good_for: data.good_for ?? null,
         description: body || data.description || null,
+        // Belirtilmemişse undefined kalsın: arayüzden eklenmiş görseli ezmeyelim.
+        image_url: data.image_url,
       });
       console.log(`  ✓ ${file} (${data.name})`);
       count++;

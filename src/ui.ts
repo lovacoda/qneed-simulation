@@ -15,12 +15,14 @@ import { parseDialog, parseTags, slugify } from './parse';
 import {
   upsertConversation,
   upsertProduct,
+  getProductBySlug,
   listConversations,
   getConversation,
   deleteConversation,
   listProducts,
   deleteProduct,
 } from './store';
+import { isImageDataUrl, uploadProductImage, deleteProductImage } from './storage';
 
 const PORT = Number(process.env.UI_PORT ?? 3939);
 const PERSONA_PATH = path.resolve(process.cwd(), 'data/persona.md');
@@ -29,10 +31,23 @@ const HTML_PATH = path.resolve(process.cwd(), 'public/index.html');
 const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 const shortId = (): string => Math.random().toString(36).slice(2, 7);
 
+// Görseller base64 olarak gövdede geliyor: 8 MB'lık bir dosya ~11 MB metin eder.
+// 16 MB üstünü kesiyoruz ki hatalı bir istek belleği şişirmesin.
+const MAX_BODY_BYTES = 16 * 1024 * 1024;
+
 function readBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let data = '';
-    req.on('data', (c) => (data += c));
+    let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > MAX_BODY_BYTES) {
+        reject(new Error('İstek gövdesi çok büyük (en fazla 16 MB).'));
+        req.destroy();
+        return;
+      }
+      data += c;
+    });
     req.on('end', () => resolve(data));
     req.on('error', reject);
   });
@@ -171,15 +186,38 @@ const server = http.createServer(async (req, res) => {
         const slug =
           (typeof b.slug === 'string' && b.slug.trim()) ||
           `${slugify(String(b.name))}-${shortId()}`;
-        await upsertProduct(supabase, {
-          slug,
-          name: String(b.name).trim(),
-          price: null,
-          category: b.category || null,
-          good_for: b.good_for || null,
-          description: b.description || null,
-        });
-        return sendJson(res, 200, { ok: true, slug });
+
+        // Görsel üç halde gelebilir: yeni yükleme (data URL), değişmemiş kayıtlı
+        // URL, ya da hiçbiri (kullanıcı görseli kaldırdı).
+        const prev = await getProductBySlug(supabase, slug);
+        let imageUrl: string | null =
+          typeof b.image_url === 'string' && b.image_url.trim() ? b.image_url.trim() : null;
+        let uploaded: string | null = null;
+        if (isImageDataUrl(b.image)) {
+          uploaded = await uploadProductImage(supabase, slug, b.image);
+          imageUrl = uploaded;
+        }
+
+        try {
+          await upsertProduct(supabase, {
+            slug,
+            name: String(b.name).trim(),
+            price: null,
+            category: b.category || null,
+            good_for: b.good_for || null,
+            description: b.description || null,
+            image_url: imageUrl,
+          });
+        } catch (e) {
+          // Kayıt tutmadıysa yeni yüklenen görsel Storage'da yetim kalmasın.
+          await deleteProductImage(supabase, uploaded);
+          throw e;
+        }
+        // Kayıt tamam; eski görsel artık kullanılmıyorsa Storage'dan temizle.
+        if (prev?.image_url && prev.image_url !== imageUrl) {
+          await deleteProductImage(supabase, prev.image_url);
+        }
+        return sendJson(res, 200, { ok: true, slug, image_url: imageUrl });
       }
     }
     const prodMatch = p.match(/^\/api\/products\/([^/]+)$/);

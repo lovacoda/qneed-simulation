@@ -59,7 +59,11 @@
   .note { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid #f2e2c4; border-radius: 9px; padding: 10px 12px; font-size: 13px; margin-bottom: 16px; }
   /* Görünüm sayfaları */
   .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-top: 14px; }
+  .img-prev { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .img-prev img { width: 64px; height: 64px; object-fit: cover; border-radius: 9px; border: 1px solid var(--line); }
+  .item .thumb { width: 34px; height: 34px; object-fit: cover; border-radius: 7px; border: 1px solid var(--line); flex: none; }
   .cat-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; }
+  .cat-card .shot { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 9px; border: 1px solid var(--line); margin-bottom: 10px; }
   .cat-card .nm { font-weight: 700; }
   .cat-card .pr { color: var(--accent); font-weight: 700; margin-top: 2px; }
   .cat-card .gf { font-size: 13px; color: var(--muted); margin-top: 6px; }
@@ -178,6 +182,13 @@
         <input id="pr-goodfor" placeholder="yağlı ve karma ciltler, gözenek görünümü" />
         <label>Açıklama</label>
         <textarea id="pr-description" rows="4" placeholder="Niacinamide %10 + Çinko. Sebum dengeler, gözenek görünümünü azaltır..."></textarea>
+        <label>Fotoğraf</label>
+        <p class="sub" style="margin:0 0 6px">PNG/JPEG. İleride müşteriye gönderilecek görsel. Uzun kenar 1080px'e küçültülür.</p>
+        <input type="file" id="pr-image" accept="image/png,image/jpeg" />
+        <div class="img-prev" id="pr-image-prev" style="display:none">
+          <img id="pr-image-thumb" alt="" />
+          <button class="btn link del" id="pr-image-remove" type="button">Görseli kaldır</button>
+        </div>
         <div class="actions">
           <button class="btn" id="pr-save">Kaydet</button>
           <button class="btn ghost" id="pr-clear">Temizle</button>
@@ -393,6 +404,7 @@ async function loadProducts() {
     if (!list.length) { box.innerHTML = '<div class="empty">Henüz ürün yok.</div>'; return; }
     box.innerHTML = list.map((p) => `
       <div class="item">
+        ${p.image_url ? '<img class="thumb" src="' + esc(p.image_url) + '" alt="" />' : ''}
         <div class="main">
           <div class="t">${esc(p.name)}</div>
           <div class="m">${p.category ? '<span class="tag">' + esc(p.category) + '</span>' : ''}${p.good_for ? esc(p.good_for) : ''}</div>
@@ -404,12 +416,60 @@ async function loadProducts() {
     box.querySelectorAll('[data-pdel]').forEach((b) => b.addEventListener('click', () => delProduct(b.dataset.pdel)));
   } catch (e) { box.innerHTML = '<div class="empty">Yüklenemedi: ' + esc(e.message) + '</div>'; }
 }
+// Görsel durumu: prImage = yeni seçilen (data URL), prImageUrl = kayıtlı görselin URL'i.
+// Kaydederken ikisi de boşsa görsel kaldırılmış demektir.
+let prImage = null;
+let prImageUrl = '';
+
+const IMG_MAX_W = 1080;  // Instagram zaten 1080'e sıkıştırıyor; küçültmeyi biz yapalım
+const IMG_MIN_W = 320;   // Instagram'ın kabul ettiği alt sınır
+
+// Dosyayı 1080px'e küçültüp data URL'e çevirir. PNG ise PNG kalır (ekran
+// görüntülerinde yazılar JPEG'de bozuluyor), diğerleri JPEG olur.
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objUrl);
+      if (img.width < IMG_MIN_W) return reject(new Error(`Görsel çok küçük (en az ${IMG_MIN_W}px genişlik).`));
+      const scale = Math.min(1, IMG_MAX_W / img.width);
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const type = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+      resolve(c.toDataURL(type, 0.9));
+    };
+    img.onerror = () => { URL.revokeObjectURL(objUrl); reject(new Error('Görsel okunamadı.')); };
+    img.src = objUrl;
+  });
+}
+function showProductImage(src) {
+  $('pr-image-prev').style.display = src ? 'flex' : 'none';
+  if (src) $('pr-image-thumb').src = src;
+}
+$('pr-image').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    prImage = await fileToDataUrl(file);
+    showProductImage(prImage);
+  } catch (err) { toast(err.message, true); $('pr-image').value = ''; }
+});
+$('pr-image-remove').addEventListener('click', () => {
+  prImage = null; prImageUrl = ''; $('pr-image').value = ''; showProductImage(null);
+});
+
 function clearProductForm() {
   ['pr-slug', 'pr-name', 'pr-category', 'pr-goodfor', 'pr-description'].forEach((i) => ($(i).value = ''));
+  prImage = null; prImageUrl = ''; $('pr-image').value = ''; showProductImage(null);
 }
 function editProduct(p) {
   $('pr-slug').value = p.slug; $('pr-name').value = p.name || ''; $('pr-category').value = p.category || '';
   $('pr-goodfor').value = p.good_for || ''; $('pr-description').value = p.description || '';
+  prImage = null; prImageUrl = p.image_url || ''; $('pr-image').value = '';
+  showProductImage(prImageUrl);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 async function delProduct(id) {
@@ -422,6 +482,7 @@ $('pr-save').addEventListener('click', async () => {
   const body = {
     slug: $('pr-slug').value, name: $('pr-name').value, category: $('pr-category').value,
     good_for: $('pr-goodfor').value, description: $('pr-description').value,
+    image: prImage, image_url: prImageUrl,
   };
   try {
     await api('/api/products', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
@@ -472,6 +533,7 @@ async function loadProductsView() {
     if (!list.length) { box.innerHTML = '<div class="empty">Henüz ürün yok.</div>'; return; }
     box.innerHTML = list.map((p) => `
       <div class="cat-card">
+        ${p.image_url ? '<img class="shot" src="' + esc(p.image_url) + '" alt="" />' : ''}
         <div class="nm">${esc(p.name)}</div>
         ${p.category ? '<div style="margin-top:6px"><span class="tag">' + esc(p.category) + '</span></div>' : ''}
         ${p.good_for ? '<div class="gf">Kime uygun: ' + esc(p.good_for) + '</div>' : ''}
