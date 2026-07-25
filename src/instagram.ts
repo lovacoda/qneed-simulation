@@ -67,6 +67,26 @@ async function post(path: string, body: unknown): Promise<Record<string, any>> {
   return json;
 }
 
+// Ek türlerinin Türkçe karşılığı. Kayıtlarda "[ephemeral eki]" gibi teknik
+// etiket yerine "(kaybolan fotoğraf gönderdi)" yazıyoruz — hem arayüzde
+// okunaklı, hem de Claude geçmişi okurken ne olduğunu anlıyor.
+const MEDYA_ADI: Record<string, string> = {
+  image: 'fotoğraf',
+  ephemeral: 'kaybolan fotoğraf',
+  video: 'video',
+  audio: 'ses kaydı',
+  file: 'dosya',
+  share: 'gönderi',
+  story_mention: 'hikâye',
+  ig_reel: 'reels',
+  reel: 'reels',
+  location: 'konum',
+};
+export function medyaNotu(tur: string, adet = 1): string {
+  const ad = MEDYA_ADI[tur] ?? 'ek';
+  return adet > 1 ? `(${adet} ${ad} gönderdi)` : `(${ad} gönderdi)`;
+}
+
 // Müşterinin kullanıcı adını çeker (DM'de webhook sadece kimlik numarası
 // veriyor). En iyi çaba: alınamazsa numarayla devam ederiz.
 export async function fetchUsername(igsid: string): Promise<string | null> {
@@ -233,7 +253,7 @@ export function parseWebhook(body: any): IncomingMessage[] {
         .map((a: any) => String(a.type));
       let text = typeof m.text === 'string' ? m.text.trim() : '';
       // Ses/video/dosya gönderdiyse en azından ne olduğunu ikize bildirelim.
-      for (const t of otherTypes) text = (text ? text + '\n' : '') + `[${t} eki]`;
+      for (const t of otherTypes) text = (text ? text + '\n' : '') + medyaNotu(t);
       out.push({
         senderId: String(ev?.sender?.id ?? ''),
         recipientId: String(ev?.recipient?.id ?? ''),

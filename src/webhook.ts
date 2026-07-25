@@ -37,6 +37,7 @@ import {
   replyToComment,
   fetchAttachment,
   fetchUsername,
+  medyaNotu,
   type IncomingMessage,
   type IncomingComment,
 } from './instagram';
@@ -467,7 +468,9 @@ async function replyNow(threadId: string, senderId: string, since?: number): Pro
   // ya da fotoğraf bu turun dışında kaldı) ikizin o fotoğraf hakkında
   // konuşmasını engelliyoruz — göremediği şeyi uydurmasın.
   const gorunenFoto = urls.length > 0;
-  const gecmisteFoto = history.some((h) => h.image_url || h.text.includes('[fotoğraf]'));
+  const gecmisteFoto = history.some(
+    (h) => h.image_url || /fotoğraf gönderdi|fotoğraf:/i.test(h.text),
+  );
   const note =
     !gorunenFoto && gecmisteFoto
       ? `${CHANNEL_NOTE}
@@ -544,8 +547,8 @@ async function handleCustomerMessage(msg: IncomingMessage): Promise<void> {
     }
   }
 
-  const marks = msg.imageUrls.map(() => '[fotoğraf]').join(' ');
-  const storedText = [msg.text, marks].filter(Boolean).join(' ').trim() || '[boş mesaj]';
+  const marks = msg.imageUrls.length ? medyaNotu('image', msg.imageUrls.length) : '';
+  const storedText = [msg.text, marks].filter(Boolean).join(' ').trim() || '(boş mesaj)';
 
   const fresh = await recordMessage(supabase, {
     thread_id: thread.id,
@@ -603,7 +606,7 @@ async function handleEcho(msg: IncomingMessage): Promise<void> {
     thread_id: thread.id,
     mid: msg.mid,
     role: 'human',
-    text: msg.text || '[fotoğraf/ek]',
+    text: msg.text || medyaNotu('image'),
   });
   cancelPending(thread.id);
   const wasActive = !threadIsMuted(thread);

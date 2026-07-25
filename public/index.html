@@ -124,6 +124,7 @@
   <button data-tab="test">Test Simülasyonu</button>
   <button data-tab="prompt">Sistem Promptu</button>
   <button data-tab="instagram">Instagram</button>
+  <button data-tab="arsiv">Tüm Konuşmalar</button>
   <button data-tab="konusmalar" style="margin-left:auto">Konuşmalar</button>
   <button data-tab="katalog">Katalog</button>
 </nav>
@@ -253,6 +254,45 @@
     </div>
   </section>
 
+  <!-- ===== TÜM KONUŞMALAR (Instagram arşivi → eğitim verisi) ===== -->
+  <section class="panel" id="panel-arsiv">
+    <div class="page-head"><h2>Tüm Konuşmalar</h2></div>
+    <p class="sub" style="margin:4px 0 14px">Instagram'daki gerçek sohbetler. Beğendiğin bir satış konuşmasını seç, gereksiz satırları çıkar, kaydet — ikiz tarzını buradan öğrenir.</p>
+    <div class="note">Dikkat: bu konuşmalar eğitim verisine girince her mesajda Claude'a gidiyor. Telefon, adres, ad soyad geçen satırları çıkarmayı unutma.</div>
+    <div class="grid2">
+      <div class="card">
+        <h2>Sohbetler</h2>
+        <p class="sub">Yeşil rozet = daha önce eğitim verisine eklenmiş.</p>
+        <input id="ar-search" placeholder="Kullanıcı adı ara..." autocomplete="off" />
+        <div class="list" id="ar-list"><div class="empty">Yükleniyor...</div></div>
+      </div>
+      <div class="card">
+        <h2 id="ar-title">Sohbet seç</h2>
+        <p class="sub" id="ar-sub">Soldan bir sohbete tıkla.</p>
+        <div id="ar-detail" style="display:none">
+          <div class="cvchat" id="ar-chat" style="height:300px"></div>
+          <div class="row" style="margin-top:12px">
+            <div><label>Başlık</label><input id="ar-cv-title" placeholder="ör. melazma - serum satışı" /></div>
+            <div><label>Sonuç</label>
+              <select id="ar-outcome"><option value="sold">Satıldı</option><option value="lost">Kaçtı</option><option value="open">Açık</option><option value="unknown">Belirsiz</option></select>
+            </div>
+            <div><label>Kalite (1-5)</label><input id="ar-quality" type="number" min="1" max="5" value="4" /></div>
+          </div>
+          <label>Etiketler (virgülle)</label>
+          <input id="ar-tags" placeholder="melazma, leke, serum" />
+          <label style="display:flex;align-items:center;gap:8px;font-weight:500;margin-top:12px">
+            <input type="checkbox" id="ar-exemplar" style="width:auto" /> Örnek olarak kullan (her zaman prompta girsin)
+          </label>
+          <div class="actions">
+            <button class="btn" id="ar-save">Eğitim verisine kaydet</button>
+            <button class="btn ghost" id="ar-undo" disabled>↶ Geri al</button>
+            <span class="hint" id="ar-count" style="color:var(--muted);font-size:12px"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ===== INSTAGRAM ===== -->
   <section class="panel" id="panel-instagram">
     <div id="igNote"></div>
@@ -344,6 +384,7 @@ document.querySelectorAll('nav button').forEach((b) =>
     if (b.dataset.tab === 'konusmalar') loadConversationsView();
     if (b.dataset.tab === 'katalog') loadProductsView();
     if (b.dataset.tab === 'instagram') loadInstagram();
+    if (b.dataset.tab === 'arsiv') loadArchive();
   }),
 );
 
@@ -831,6 +872,153 @@ async function loadIgThreads() {
     }));
   } catch (e) { box.innerHTML = '<div class="empty">Yüklenemedi: ' + esc(e.message) + '</div>'; }
 }
+
+// ---- Tüm Konuşmalar (Instagram arşivi → eğitim verisi) ----
+// arMsgs: seçili sohbetin mesajları. include=false olanlar kaydedilmez.
+// İkizin kendi cevapları (assistant) varsayılan olarak dışarıda — kendi
+// kendini taklit edip tarzı bozmasın.
+let arThreadId = null;
+let arMsgs = [];      // ekranda görünen = kaydedilecek olan
+let arSilinen = [];   // geri alma yığını: {index, msg}
+let arAll = [];      // sunucudan gelen tüm sohbetler
+let arQuery = '';    // arama kutusundaki metin
+
+// Türkçe duyarsız karşılaştırma (İstanbul / istanbul aynı sayılsın).
+const trLower = (s) => String(s ?? '').replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase();
+
+async function loadArchive() {
+  const box = $('ar-list');
+  try {
+    arAll = await api('/api/ig/archive');
+    renderArchiveList();
+  } catch (e) { box.innerHTML = '<div class="empty">Yüklenemedi: ' + esc(e.message) + '</div>'; }
+}
+
+function renderArchiveList() {
+  const box = $('ar-list');
+  if (!arAll.length) {
+    box.innerHTML = '<div class="empty">Sohbet yok. Instagram geçmişini almak için: npm run ig-import</div>';
+    return;
+  }
+  const q = trLower(arQuery).trim();
+  const bulunan = arAll.filter((t) => trLower(t.username || t.ig_user_id).includes(q));
+  // Açık olan sohbet her zaman en üstte dursun.
+  const secili = bulunan.filter((t) => t.id === arThreadId);
+  const digerleri = bulunan.filter((t) => t.id !== arThreadId);
+  const sirali = [...secili, ...digerleri];
+
+  if (!sirali.length) { box.innerHTML = '<div class="empty">Eşleşen sohbet yok.</div>'; return; }
+
+  box.innerHTML = sirali.map((t) => {
+    const acik = t.id === arThreadId;
+    return `
+      <div class="item" style="${acik ? 'background:var(--accent-soft);border-radius:9px;padding-left:8px;padding-right:8px' : ''}">
+        <div class="main">
+          <div class="t" style="${acik ? 'color:var(--accent)' : ''}">${esc(t.username ? '@' + t.username : t.ig_user_id)}</div>
+          <div class="m"><span class="tag">${t.message_count} mesaj</span>${t.exported ? '<span class="tag" style="background:#dff0e9;color:var(--accent)">kaydedildi</span>' : ''}${t.last_message_at ? new Date(t.last_message_at).toLocaleDateString('tr-TR') : ''}</div>
+        </div>
+        <button class="btn ${acik ? 'ghost small' : 'link'}" data-ar="${t.id}">${acik ? 'Kapat' : 'Aç'}</button>
+      </div>`;
+  }).join('');
+
+  box.querySelectorAll('[data-ar]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.ar === arThreadId) closeArchive(); else openArchive(b.dataset.ar);
+  }));
+}
+
+$('ar-search').addEventListener('input', (e) => { arQuery = e.target.value; renderArchiveList(); });
+
+function closeArchive() {
+  arThreadId = null;
+  arMsgs = [];
+  arSilinen = [];
+  $('ar-detail').style.display = 'none';
+  $('ar-title').textContent = 'Sohbet seç';
+  $('ar-sub').textContent = 'Soldan bir sohbete tıkla.';
+  renderArchiveList();
+}
+
+async function openArchive(id) {
+  try {
+    const { thread, messages } = await api('/api/ig/archive/' + id);
+    arThreadId = id;
+    renderArchiveList();
+    // İkizin cevapları ve "(fotoğraf gönderdi)" gibi medya notları en baştan
+    // ayıklanıyor — eğitim verisine gürültü girmesin. Ekranda görünen ne varsa
+    // kaydedilecek olan odur.
+    const medyaNotuMu = (t) => /^\(.*gönderdi\)$/.test(t.trim()) || /^\(boş mesaj\)$/.test(t.trim());
+    const hepsi = messages.map((m) => ({ role: m.role, text: m.text }));
+    arMsgs = hepsi.filter((m) => m.role !== 'assistant' && !medyaNotuMu(m.text));
+    arSilinen = [];
+    const ayiklanan = hepsi.length - arMsgs.length;
+    $('ar-title').textContent = thread.username ? '@' + thread.username : thread.ig_user_id;
+    $('ar-sub').textContent =
+      'Silmek istediğin mesajın üstüne gel, sağ üstteki × işaretine bas.' +
+      (ayiklanan ? ` (${ayiklanan} satır otomatik çıkarıldı: ikiz cevapları ve medya notları)` : '');
+    $('ar-cv-title').value = '';
+    $('ar-detail').style.display = 'block';
+    renderArchiveChat();
+    // Sohbet listenin en üstüne çıktı; sayfayı da başa al ki aynı hizada olsun.
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (e) { toast(e.message, true); }
+}
+
+const AR_ROL = { customer: 'Müşteri', human: 'Ben', assistant: 'İkiz' };
+function renderArchiveChat() {
+  const box = $('ar-chat');
+  if (!arMsgs.length) {
+    box.innerHTML = '<div class="cvchat-empty">Hiç mesaj kalmadı. Geri al ile döndürebilirsin.</div>';
+  } else {
+    box.innerHTML = arMsgs.map((m, i) => `
+      <div class="cvb ${m.role === 'customer' ? 'cu' : 'me'}">
+        <div class="who">${AR_ROL[m.role] || m.role}</div>${esc(m.text)}
+        <span class="x" data-arx="${i}" title="Bu mesajı çıkar">×</span>
+      </div>`).join('');
+    box.querySelectorAll('[data-arx]').forEach((el) => el.addEventListener('click', () => {
+      const i = Number(el.dataset.arx);
+      arSilinen.push({ index: i, msg: arMsgs[i] });   // geri almak için sakla
+      arMsgs.splice(i, 1);
+      renderArchiveChat();
+    }));
+  }
+  $('ar-undo').disabled = arSilinen.length === 0;
+  $('ar-count').textContent =
+    arMsgs.length + ' mesaj kaydedilecek' + (arSilinen.length ? ` · ${arSilinen.length} silindi` : '');
+}
+
+// Son silineni yerine geri koyar.
+$('ar-undo').addEventListener('click', () => {
+  const son = arSilinen.pop();
+  if (!son) return;
+  arMsgs.splice(Math.min(son.index, arMsgs.length), 0, son.msg);
+  renderArchiveChat();
+});
+
+$('ar-save').addEventListener('click', async () => {
+  if (!arThreadId) return;
+  const dialog = arMsgs.map((m) => ({
+    speaker: m.role === 'customer' ? 'customer' : 'me',
+    text: m.text,
+  }));
+  const body = {
+    dialog,
+    title: $('ar-cv-title').value,
+    outcome: $('ar-outcome').value,
+    quality: $('ar-quality').value,
+    tags: $('ar-tags').value,
+    exemplar: $('ar-exemplar').checked,
+  };
+  try {
+    const r = await api('/api/ig/archive/' + arThreadId + '/export', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    });
+    toast(r.count + ' mesaj eğitim verisine eklendi');
+    // Listeyi tazele ama açık sohbet açık kalsın (rozet yeşile dönsün).
+    arAll = await api('/api/ig/archive');
+    renderArchiveList();
+    loadConversations();
+  } catch (e) { toast(e.message, true); }
+});
 
 // ---- Başlat ----
 (async function init() {

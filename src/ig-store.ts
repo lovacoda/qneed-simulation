@@ -243,6 +243,47 @@ export async function listComments(supabase: SupabaseClient, limit = 20) {
   return data ?? [];
 }
 
+// Instagram sohbet arşivi: eğitim verisine aktarmak için liste.
+// "exported" = bu sohbet daha önce eğitim verisine kaydedilmiş mi.
+export async function listArchive(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from('ig_threads')
+    .select('id,ig_user_id,username,last_message_at,ig_messages(count)')
+    .order('last_message_at', { ascending: false, nullsFirst: false })
+    .limit(500);
+  if (error) throw new Error(error.message);
+
+  const threads = (data ?? []).map((t: Record<string, any>) => ({
+    id: t.id,
+    ig_user_id: t.ig_user_id,
+    username: t.username,
+    last_message_at: t.last_message_at,
+    message_count: Array.isArray(t.ig_messages) && t.ig_messages[0] ? t.ig_messages[0].count : 0,
+    slug: archiveSlug(t.username, t.ig_user_id),
+  }));
+
+  const { data: kayitli } = await supabase.from('conversations').select('slug').like('slug', 'ig-%');
+  const varOlan = new Set((kayitli ?? []).map((c: Record<string, any>) => c.slug));
+  return threads.map((t) => ({ ...t, exported: varOlan.has(t.slug) }));
+}
+
+export function archiveSlug(username: string | null, igUserId: string): string {
+  const ad = (username || igUserId).toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
+  return `ig-${ad}`.slice(0, 60);
+}
+
+// Tek sohbetin mesajları (eskiden yeniye).
+export async function archiveMessages(supabase: SupabaseClient, threadId: string) {
+  const { data, error } = await supabase
+    .from('ig_messages')
+    .select('role,text,created_at')
+    .eq('thread_id', threadId)
+    .order('created_at', { ascending: true })
+    .limit(500);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 export async function listThreads(supabase: SupabaseClient) {
   const { data } = await supabase
     .from('ig_threads')

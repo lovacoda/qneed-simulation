@@ -17,8 +17,12 @@ import { getOrCreateThread } from './ig-store';
 
 // Kaç sohbet ve sohbet başına kaç mesaj çekilecek (Meta daha fazlasını
 // vermeyebilir; verdiği kadarını alırız).
-const MAX_CONVERSATIONS = Number(process.env.IMPORT_MAX_CONVERSATIONS ?? 100);
-const MAX_MESSAGES = Number(process.env.IMPORT_MAX_MESSAGES ?? 100);
+const MAX_CONVERSATIONS = Number(process.env.IMPORT_MAX_CONVERSATIONS ?? 1000);
+const MAX_MESSAGES = Number(process.env.IMPORT_MAX_MESSAGES ?? 500);
+
+// Meta saatlik istek kotası koyuyor. Kotaya takılınca döngüyü kırıp temiz
+// bitiriyoruz; bir süre sonra tekrar çalıştırınca kaldığı yerden devam eder.
+class KotaHatasi extends Error {}
 
 const log = (s: string) => console.log(s);
 
@@ -34,7 +38,11 @@ async function get(path: string): Promise<Record<string, any>> {
   } catch {
     /* aşağıda ham metni raporlarız */
   }
-  if (!res.ok) throw new Error(`Instagram API ${res.status}: ${json?.error?.message ?? text.slice(0, 200)}`);
+  if (!res.ok) {
+    const mesaj = json?.error?.message ?? text.slice(0, 200);
+    if (/request limit reached|rate limit/i.test(String(mesaj))) throw new KotaHatasi(mesaj);
+    throw new Error(`Instagram API ${res.status}: ${mesaj}`);
+  }
   return json;
 }
 
@@ -68,13 +76,25 @@ async function main(): Promise<void> {
   log(`Hesap: @${me.username} (${myId})\n`);
 
   const conversations = await pagedList(
-    `/${IG_ACCOUNT_ID}/conversations?platform=instagram&fields=participants&limit=50`,
+    `/${IG_ACCOUNT_ID}/conversations?platform=instagram&fields=participants,updated_time&limit=50`,
     MAX_CONVERSATIONS,
   );
   log(`${conversations.length} sohbet bulundu.\n`);
 
+  // Daha önce aldıklarımız: son mesaj tarihi değişmemişse tekrar çekmiyoruz
+  // (Meta kotasını boşa harcamayalım, tekrar çalıştırmak ucuz olsun).
+  const { data: mevcut } = await supabase.from('ig_threads').select('ig_user_id,last_message_at');
+  const sonKayit = new Map<string, number>(
+    (mevcut ?? []).map((t: Record<string, any>) => [
+      String(t.ig_user_id),
+      t.last_message_at ? new Date(t.last_message_at).getTime() : 0,
+    ]),
+  );
+
   let yeniMesaj = 0;
   let atlanan = 0;
+  let degismeyen = 0;
+  let kotaBitti = false;
 
   for (const conv of conversations) {
     const parts: Participant[] = conv?.participants?.data ?? [];
@@ -84,6 +104,14 @@ async function main(): Promise<void> {
       continue;
     }
     const kim = other.username ? '@' + other.username : other.id;
+
+    // Bu sohbette yeni mesaj yoksa hiç istek atma.
+    const guncelleme = conv?.updated_time ? new Date(conv.updated_time).getTime() : 0;
+    const bizdeki = sonKayit.get(String(other.id));
+    if (bizdeki !== undefined && guncelleme && bizdeki >= guncelleme - 60_000) {
+      degismeyen++;
+      continue;
+    }
 
     let messages: any[] = [];
     try {
@@ -96,6 +124,10 @@ async function main(): Promise<void> {
         next = page.paging?.next ?? null;
       }
     } catch (e) {
+      if (e instanceof KotaHatasi) {
+        kotaBitti = true;
+        break;
+      }
       log(`  ${kim}: mesajlar alınamadı (${e instanceof Error ? e.message : e})`);
       continue;
     }
@@ -147,7 +179,13 @@ async function main(): Promise<void> {
   }
 
   log(`\nBitti. ${yeniMesaj} yeni mesaj kaydedildi.`);
+  if (degismeyen) log(`${degismeyen} sohbet değişmemişti, atlandı.`);
   if (atlanan) log(`${atlanan} sohbet atlandı (karşı taraf okunamadı).`);
+  if (kotaBitti) {
+    log('\n⚠  Meta saatlik istek kotası doldu — kalanlar alınamadı.');
+    log('   Bir saat sonra "npm run ig-import" komutunu tekrar çalıştır,');
+    log('   kaldığı yerden devam eder (alınanları tekrar çekmez).');
+  }
   log('Aktarılan sohbetler KİLİTLİ — ikiz kendiliğinden yazmaz.');
 }
 

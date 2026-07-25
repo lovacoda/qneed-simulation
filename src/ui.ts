@@ -29,7 +29,15 @@ import {
   deleteProduct,
 } from './store';
 import { isImageDataUrl, uploadProductImage, deleteProductImage } from './storage';
-import { listThreads, listComments, setAutoReply } from './ig-store';
+import {
+  listThreads,
+  listComments,
+  setAutoReply,
+  listArchive,
+  archiveMessages,
+  archiveSlug,
+  threadById,
+} from './ig-store';
 import { listTriggers, addTrigger, deleteTrigger, toggleTrigger } from './triggers';
 
 const PORT = Number(process.env.UI_PORT ?? 3939);
@@ -300,6 +308,52 @@ const server = http.createServer(async (req, res) => {
       await setAutoReply(getSupabase(), decodeURIComponent(igThread[1]), !!b.auto_reply);
       return sendJson(res, 200, { ok: true });
     }
+    // --- Instagram sohbet arşivi → eğitim verisi ---
+    if (method === 'GET' && p === '/api/ig/archive') {
+      return sendJson(res, 200, await listArchive(getSupabase()));
+    }
+    const arcOne = p.match(/^\/api\/ig\/archive\/([^/]+)$/);
+    if (method === 'GET' && arcOne) {
+      const supabase = getSupabase();
+      const id = decodeURIComponent(arcOne[1]);
+      const thread = await threadById(supabase, id);
+      if (!thread) return sendJson(res, 404, { error: 'sohbet bulunamadı' });
+      return sendJson(res, 200, {
+        thread,
+        messages: await archiveMessages(supabase, id),
+        slug: archiveSlug(thread.username, thread.ig_user_id),
+      });
+    }
+    // Seçilen mesajları eğitim verisine (conversations/messages) kaydeder.
+    // Embedding upsertConversation içinde otomatik üretiliyor.
+    const arcExp = p.match(/^\/api\/ig\/archive\/([^/]+)\/export$/);
+    if (method === 'POST' && arcExp) {
+      const supabase = getSupabase();
+      const id = decodeURIComponent(arcExp[1]);
+      const thread = await threadById(supabase, id);
+      if (!thread) return sendJson(res, 404, { error: 'sohbet bulunamadı' });
+      const b = await readJson(req);
+      const dialog = (Array.isArray(b.dialog) ? b.dialog : [])
+        .filter((m: any) => m && typeof m.text === 'string' && m.text.trim())
+        .map((m: any) => ({
+          speaker: m.speaker === 'customer' ? ('customer' as const) : ('me' as const),
+          text: String(m.text).trim(),
+        }));
+      if (dialog.length === 0) return sendJson(res, 400, { error: 'En az bir mesaj seçmelisin.' });
+      const slug = archiveSlug(thread.username, thread.ig_user_id);
+      await upsertConversation(supabase, {
+        slug,
+        title: b.title || (thread.username ? '@' + thread.username : thread.ig_user_id),
+        channel: 'instagram',
+        outcome: b.outcome || 'unknown',
+        is_exemplar: !!b.exemplar,
+        quality: Number(b.quality) || 3,
+        tags: parseTags(b.tags),
+        dialog,
+      });
+      return sendJson(res, 200, { ok: true, slug, count: dialog.length });
+    }
+
     if (method === 'GET' && p === '/api/ig/comments') {
       return sendJson(res, 200, await listComments(getSupabase()));
     }
