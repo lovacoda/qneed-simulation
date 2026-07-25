@@ -10,6 +10,8 @@ export interface IgThread {
   ig_user_id: string;
   username: string | null;
   auto_reply: boolean;
+  // Tetikleyici kelime gelene kadar false: ikiz o sohbete hiç yazmaz.
+  unlocked: boolean;
   paused_until: string | null;
   last_message_at: string | null;
 }
@@ -124,6 +126,12 @@ export async function loadHistory(
 
 // Durdurma/devam ettirme. Süreli duraklatma yok: ikiz sen /resume diyene
 // kadar susar (paused_until eski kurulumlardan kalan kayıtlar için temizlenir).
+// Sohbeti ikize açar (tetikleyici kelime geldiğinde ya da DM'i biz başlattığımızda).
+export async function unlockThread(supabase: SupabaseClient, threadId: string): Promise<void> {
+  const { error } = await supabase.from('ig_threads').update({ unlocked: true }).eq('id', threadId);
+  if (error) throw new Error(error.message);
+}
+
 export async function setAutoReply(
   supabase: SupabaseClient,
   threadId: string,
@@ -237,7 +245,7 @@ export async function listComments(supabase: SupabaseClient, limit = 20) {
 export async function listThreads(supabase: SupabaseClient) {
   const { data } = await supabase
     .from('ig_threads')
-    .select('id,ig_user_id,username,auto_reply,paused_until,last_message_at')
+    .select('id,ig_user_id,username,auto_reply,unlocked,paused_until,last_message_at')
     .order('last_message_at', { ascending: false, nullsFirst: false })
     .limit(50);
   return data ?? [];

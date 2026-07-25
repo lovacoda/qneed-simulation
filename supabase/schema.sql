@@ -113,6 +113,11 @@ create table if not exists ig_threads (
   created_at timestamptz default now()
 );
 
+-- DM'de ikiz, sohbete tetikleyici kelime gelene kadar YAZMAZ. Kelime gelince
+-- o sohbet açılır (unlocked) ve normal konuşmaya devam eder. Yorumdan başlayan
+-- sohbetler baştan açıktır (DM'i zaten biz başlatmışız).
+alter table ig_threads add column if not exists unlocked boolean default false;
+
 create table if not exists ig_messages (
   id uuid primary key default gen_random_uuid(),
   thread_id uuid not null references ig_threads(id) on delete cascade,

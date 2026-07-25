@@ -112,9 +112,8 @@ export async function addTrigger(supabase: SupabaseClient, input: TriggerInput):
   if (action === 'product' && !input.product_slug) {
     throw new Error('"Ürün fotoğrafı" seçtiysen bir ürün seçmelisin.');
   }
-  if (source === 'dm' && action === 'ai') {
-    throw new Error('DM tetikleyicisinde "ikiz yazsın" anlamsız — ikiz zaten cevaplıyor.');
-  }
+  // DM + "ikiz yazsın" anlamlı: o kelime gelince sohbet ikize AÇILIR ve
+  // ikiz duruma uygun cevabı kendi yazar (kelime gelmeden hiç yazmıyor).
   const { error } = await supabase.from('ig_triggers').insert({
     keyword,
     source,

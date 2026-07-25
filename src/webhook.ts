@@ -49,6 +49,7 @@ import {
   isKnownMid,
   loadHistory,
   setAutoReply,
+  unlockThread,
   threadIsMuted,
   claimComment,
   markComment,
@@ -495,6 +496,15 @@ async function handleCustomerMessage(msg: IncomingMessage): Promise<void> {
   if (!IG_AUTO_REPLY) return log('   (otomatik cevap kapalı — IG_AUTO_REPLY=false)');
   if (threadIsMuted(thread)) return log('   (ikiz bu sohbette durduruldu — /resume bekliyor)');
 
+  // Tetikleyici kelime gelmemiş sohbetlerde ikiz HİÇ yazmaz. Kelime gelince
+  // sohbet açılır ve o andan sonra normal konuşur.
+  if (!thread.unlocked) {
+    const t = pickTrigger(await listTriggers(supabase), msg.text, null, 'dm');
+    if (!t) return log('   (tetikleyici kelime yok — ikiz bu sohbete yazmıyor)');
+    await unlockThread(supabase, thread.id);
+    log(`   🔓 "${t.keyword}" geldi — sohbet ikize açıldı`);
+  }
+
   schedulePending(thread.id, msg.senderId);
 }
 
@@ -612,6 +622,8 @@ async function handleComment(c: IncomingComment): Promise<void> {
   }
 
   const thread = await getOrCreateThread(supabase, sent.recipientId ?? c.userId);
+  // DM'i biz başlattık; bu sohbet baştan ikize açık.
+  if (!thread.unlocked) await unlockThread(supabase, thread.id);
   if (c.username && thread.username !== c.username) {
     await supabase.from('ig_threads').update({ username: c.username }).eq('id', thread.id);
   }
