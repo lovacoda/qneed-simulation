@@ -463,7 +463,24 @@ async function replyNow(threadId: string, senderId: string, since?: number): Pro
     }
   }
 
-  const system = await buildSystemPrompt(batchText, CHANNEL_NOTE);
+  // Geçmişte fotoğraf var ama şu an göremiyorsak (satıcı devralıp cevapladı,
+  // ya da fotoğraf bu turun dışında kaldı) ikizin o fotoğraf hakkında
+  // konuşmasını engelliyoruz — göremediği şeyi uydurmasın.
+  const gorunenFoto = urls.length > 0;
+  const gecmisteFoto = history.some((h) => h.image_url || h.text.includes('[fotoğraf]'));
+  const note =
+    !gorunenFoto && gecmisteFoto
+      ? `${CHANNEL_NOTE}
+
+### GEÇMİŞTEKİ FOTOĞRAF (dikkat)
+Bu sohbette daha önce müşteri fotoğraf gönderdi ve onu satıcı inceleyip cevapladı.
+O fotoğrafı ŞU AN GÖREMİYORSUN. Fotoğraf hakkında yeni bir değerlendirme yapma,
+"fotoğrafta şunu görüyorum" gibi bir şey YAZMA, görmediğin bir detayı uydurma.
+Konuşmayı kaldığı yerden sürdür; fotoğrafla ilgili söylenmesi gereken zaten
+söylendi. Gerekirse müşterinin yazdıklarına dayan.`
+      : CHANNEL_NOTE;
+
+  const system = await buildSystemPrompt(batchText, note);
   const anthropic = getAnthropic();
   const reply = await anthropic.messages.create({
     model: MODEL,
