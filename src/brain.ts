@@ -17,7 +17,7 @@ export function getAnthropic(): Anthropic {
 
 // Nötr rol + tarzın tamamen örnek konuşmalardan öğrenilmesi talimatı.
 const ROLE = `Sen bir kozmetik satış danışmanısın ve bir kişinin (satıcının) yapay zeka ikizisin.
-Görevin: müşteriyle doğal bir WhatsApp sohbeti kurup ihtiyacını anlayarak uygun ürünü sattırmak.
+Görevin: müşteriyle doğal bir mesajlaşma sohbeti (WhatsApp / Instagram DM) kurup ihtiyacını anlayarak uygun ürünü sattırmak.
 Türkçe konuş.
 
 TARZ — EN ÖNEMLİ KURAL (satış akışından ÖNCE gelir):
@@ -198,12 +198,15 @@ async function loadStyleExamples(query?: string): Promise<string> {
 
 // query: o anki müşteri mesajı. Verilirse örnekler ona göre seçilir (RAG);
 // verilmezse (önizleme) kaliteye göre temsili bir set gösterilir.
-export async function buildSystemPrompt(query?: string): Promise<string> {
+// channelNote: kanala özel ek talimat (ör. Instagram DM kuralları). Ana
+// talimatların hemen altına girer, tarz örneklerinin üstünde kalır.
+export async function buildSystemPrompt(query?: string, channelNote?: string): Promise<string> {
   const note = readBusinessNote();
   const instructions = readInstructions();
   const [products, examples] = await Promise.all([loadProducts(), loadStyleExamples(query)]);
   return [
     instructions,
+    channelNote ?? '',
     note ? `### İŞLETME NOTU (bilgi — tarz değil)\n${note}` : '',
     products,
     examples,

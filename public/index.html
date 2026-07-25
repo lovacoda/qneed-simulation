@@ -123,6 +123,7 @@
   <button data-tab="veri" class="active">Veri Girişi</button>
   <button data-tab="test">Test Simülasyonu</button>
   <button data-tab="prompt">Sistem Promptu</button>
+  <button data-tab="instagram">Instagram</button>
   <button data-tab="konusmalar" style="margin-left:auto">Konuşmalar</button>
   <button data-tab="katalog">Katalog</button>
 </nav>
@@ -254,6 +255,64 @@
       <pre class="prompt" id="promptView">Yenile'ye bas...</pre>
     </div>
   </section>
+
+  <!-- ===== INSTAGRAM ===== -->
+  <section class="panel" id="panel-instagram">
+    <div id="igNote"></div>
+    <div class="page-head"><h2>Instagram</h2></div>
+    <p class="sub" style="margin:4px 0 14px">Gelen DM'leri ikiz cevaplıyor. Buradan tetikleyici kelimeleri ayarlarsın: birisi gönderi altına ya da DM'e o kelimeyi yazınca ne olacağını sen belirlersin.</p>
+
+    <div class="card" style="margin-bottom:18px">
+      <h2>Tetikleyici ekle</h2>
+      <p class="sub">Örnek: <b>fiyat</b> · gönderi yorumları · ikiz kendi yazsın → yoruma "fiyat" yazana ikiz DM'den yazar ve satış sohbeti başlar.</p>
+      <div class="row">
+        <div><label>Kelime</label><input id="ig-keyword" placeholder="ör. fiyat   ( * = her mesaj )" /></div>
+        <div><label>Nerede çalışsın</label>
+          <select id="ig-source">
+            <option value="comment">Gönderi yorumları</option>
+            <option value="dm">Gelen DM</option>
+            <option value="both">İkisi de</option>
+          </select>
+        </div>
+        <div><label>Ne yapsın</label>
+          <select id="ig-action">
+            <option value="ai">İkiz kendi yazsın</option>
+            <option value="reply">Hazır mesaj gönder</option>
+            <option value="product">Ürün fotoğrafı gönder</option>
+            <option value="handover">Bana devret (ikiz sussun)</option>
+          </select>
+        </div>
+      </div>
+      <div id="ig-row-product" style="display:none">
+        <label>Gönderilecek ürün</label>
+        <select id="ig-product"></select>
+      </div>
+      <label id="ig-text-label">Mesaj metni</label>
+      <textarea id="ig-dmtext" rows="2" placeholder="boş bırak — ikiz kendi yazsın"></textarea>
+      <div class="row">
+        <div><label>Gönderi ID <span style="font-weight:400;color:var(--muted)">(boş = tüm gönderiler)</span></label><input id="ig-media" placeholder="sadece belirli bir gönderide çalışsın" /></div>
+        <div><label>Yorumun altına yazılacak <span style="font-weight:400;color:var(--muted)">(opsiyonel)</span></label><input id="ig-public" placeholder="ör. dm'den yazdım" /></div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="ig-add">Tetikleyici ekle</button>
+        <span class="hint" style="color:var(--muted);font-size:12px">Büyük/küçük harf ve Türkçe karakter farketmez; ekli haller de tutar ("fiyat" → "fiyatı").</span>
+      </div>
+      <div class="list" id="ig-trigger-list"></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>Son yorumlar</h2>
+        <p class="sub">Gönderilerine gelen yorumlar ve DM gidip gitmediği.</p>
+        <div id="ig-comment-list"></div>
+      </div>
+      <div class="card">
+        <h2>Sohbetler</h2>
+        <p class="sub">Kimde ikiz cevaplıyor, kimde sen devraldın. Tek tıkla değiştir.</p>
+        <div id="ig-thread-list"></div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <div id="toast"></div>
@@ -287,6 +346,7 @@ document.querySelectorAll('nav button').forEach((b) =>
     if (b.dataset.tab === 'prompt') refreshPrompt();
     if (b.dataset.tab === 'konusmalar') loadConversationsView();
     if (b.dataset.tab === 'katalog') loadProductsView();
+    if (b.dataset.tab === 'instagram') loadInstagram();
   }),
 );
 
@@ -298,6 +358,7 @@ async function loadState() {
     setPill('pillSupabase', s.hasSupabase, 'Supabase');
     if (!s.hasSupabase) $('veriNote').innerHTML = '<div class="note">Supabase bağlı değil (.env eksik). Veri için SUPABASE_URL + SUPABASE_SERVICE_KEY gerekli ve şema kurulmalı.</div>';
     if (!s.hasAnthropic) $('testNote').innerHTML = '<div class="note">ANTHROPIC_API_KEY bağlı değil (.env eksik). Sohbet için gerekli.</div>';
+    window.__state = s; // Instagram sekmesi webhook portunu buradan okuyor
     return s;
   } catch (e) { toast(e.message, true); return {}; }
 }
@@ -603,6 +664,163 @@ async function refreshPrompt() {
   catch (e) { $('promptView').textContent = 'Hata: ' + e.message; }
 }
 $('prompt-refresh').addEventListener('click', refreshPrompt);
+
+// ---- Instagram ----
+const IG_SOURCE_TR = { comment: 'yorumlarda', dm: "DM'de", both: 'yorum + DM' };
+const IG_ACTION_TR = { ai: 'ikiz yazsın', reply: 'hazır mesaj', product: 'ürün fotoğrafı', handover: 'bana devret' };
+// Seçilen aksiyona göre mesaj alanının anlamı değişiyor; kullanıcıya söyleyelim.
+const IG_TEXT_HINT = {
+  ai: ['Mesaj metni', 'boş bırak — ikiz duruma göre kendi yazar'],
+  reply: ['Gönderilecek mesaj (zorunlu)', 'aynen bu metin gider, ikiz karışmaz'],
+  product: ['Fotoğraftan önce gidecek mesaj (opsiyonel)', 'boş bırakırsan sadece fotoğraf gider'],
+  handover: ['Devretmeden önce müşteriye gidecek mesaj (opsiyonel)', 'ör. hemen bakıp yazıyorum'],
+};
+
+function igSyncForm() {
+  const a = $('ig-action').value;
+  $('ig-row-product').style.display = a === 'product' ? 'block' : 'none';
+  const [label, ph] = IG_TEXT_HINT[a] || IG_TEXT_HINT.ai;
+  $('ig-text-label').textContent = label;
+  $('ig-dmtext').placeholder = ph;
+}
+$('ig-action').addEventListener('change', igSyncForm);
+// DM'de "ikiz yazsın" anlamsız (zaten cevaplıyor) — otomatik hazır mesaja geç.
+$('ig-source').addEventListener('change', () => {
+  if ($('ig-source').value === 'dm' && $('ig-action').value === 'ai') {
+    $('ig-action').value = 'reply';
+    igSyncForm();
+  }
+});
+
+async function loadInstagram() {
+  igSyncForm();
+  // Canlı motor ayrı süreçte (npm run instagram) — ayakta mı diye soralım.
+  const port = (window.__state && window.__state.webhookPort) || 3940;
+  try {
+    const r = await fetch('http://localhost:' + port + '/health');
+    const h = await r.json();
+    const eksik = [!h.hasToken && 'IG_ACCESS_TOKEN', !h.hasSecret && 'IG_APP_SECRET', !h.hasVerifyToken && 'IG_VERIFY_TOKEN'].filter(Boolean);
+    $('igNote').innerHTML = eksik.length
+      ? '<div class="note">Instagram sunucusu çalışıyor ama .env eksik: <b>' + esc(eksik.join(', ')) + '</b></div>'
+      : (h.autoReply ? '' : '<div class="note">Sunucu çalışıyor ama otomatik cevap kapalı (IG_AUTO_REPLY=false).</div>');
+  } catch {
+    $('igNote').innerHTML = '<div class="note">Instagram sunucusu kapalı — ayrı bir pencerede <code>npm run instagram</code> çalıştır. (Ayarları buradan yine de düzenleyebilirsin.)</div>';
+  }
+  // Tablolar kurulmadan hiçbiri çalışmaz; kriptik hata yerine ne yapacağını yaz.
+  try {
+    await api('/api/ig/triggers');
+  } catch (e) {
+    if (/schema cache|does not exist|relation/i.test(e.message)) {
+      $('igNote').innerHTML += '<div class="note">Instagram tabloları henüz kurulmamış — <b>supabase/schema.sql</b> dosyasındaki Instagram bloğunu Supabase &gt; SQL Editor\'de çalıştırman gerekiyor.</div>';
+    }
+  }
+  loadIgProducts();
+  loadIgTriggers();
+  loadIgComments();
+  loadIgThreads();
+}
+
+async function loadIgProducts() {
+  try {
+    const list = await api('/api/products');
+    $('ig-product').innerHTML = list.length
+      ? list.map((p) => '<option value="' + esc(p.slug) + '"' + (p.image_url ? '' : ' disabled') + '>' + esc(p.name) + (p.image_url ? '' : ' (fotoğrafı yok)') + '</option>').join('')
+      : '<option value="">Önce Veri Girişi\'nden fotoğraflı ürün ekle</option>';
+  } catch { /* Supabase yoksa boş kalsın */ }
+}
+
+async function loadIgTriggers() {
+  const box = $('ig-trigger-list');
+  try {
+    const list = await api('/api/ig/triggers');
+    if (!list.length) { box.innerHTML = '<div class="empty">Henüz tetikleyici yok. Öneri: <b>fiyat</b>, <b>bilgi</b>, <b>link</b>.</div>'; return; }
+    box.innerHTML = list.map((t) => `
+      <div class="item" style="${t.active ? '' : 'opacity:.5'}">
+        <div class="main">
+          <div class="t">${esc(t.keyword)}</div>
+          <div class="m">
+            <span class="tag">${IG_SOURCE_TR[t.source] || t.source}</span>
+            <span class="tag">${IG_ACTION_TR[t.action] || t.action}</span>
+            ${t.media_id ? '<span class="tag">tek gönderi</span>' : ''}
+            ${t.product_slug ? '<span class="tag">' + esc(t.product_slug) + '</span>' : ''}
+            ${t.dm_text ? esc(t.dm_text.slice(0, 70)) : ''}
+          </div>
+        </div>
+        <button class="btn link" data-igtgl="${t.id}" data-on="${t.active ? '0' : '1'}">${t.active ? 'Duraklat' : 'Aç'}</button>
+        <button class="btn link del" data-igdel="${t.id}">Sil</button>
+      </div>`).join('');
+    box.querySelectorAll('[data-igtgl]').forEach((b) => b.addEventListener('click', async () => {
+      try {
+        await api('/api/ig/triggers/' + b.dataset.igtgl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ active: b.dataset.on === '1' }) });
+        loadIgTriggers();
+      } catch (e) { toast(e.message, true); }
+    }));
+    box.querySelectorAll('[data-igdel]').forEach((b) => b.addEventListener('click', async () => {
+      if (!confirm('Bu tetikleyici silinsin mi?')) return;
+      try { await api('/api/ig/triggers/' + b.dataset.igdel, { method: 'DELETE' }); toast('Silindi'); loadIgTriggers(); }
+      catch (e) { toast(e.message, true); }
+    }));
+  } catch (e) { box.innerHTML = '<div class="empty">Yüklenemedi: ' + esc(e.message) + '</div>'; }
+}
+
+$('ig-add').addEventListener('click', async () => {
+  const body = {
+    keyword: $('ig-keyword').value,
+    source: $('ig-source').value,
+    action: $('ig-action').value,
+    media_id: $('ig-media').value.trim(),
+    dm_text: $('ig-dmtext').value.trim(),
+    public_reply: $('ig-public').value.trim(),
+    product_slug: $('ig-action').value === 'product' ? $('ig-product').value : '',
+  };
+  try {
+    await api('/api/ig/triggers', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    toast('Tetikleyici eklendi');
+    ['ig-keyword', 'ig-media', 'ig-dmtext', 'ig-public'].forEach((i) => ($(i).value = ''));
+    loadIgTriggers();
+  } catch (e) { toast(e.message, true); }
+});
+
+async function loadIgComments() {
+  const box = $('ig-comment-list');
+  try {
+    const list = await api('/api/ig/comments');
+    if (!list.length) { box.innerHTML = '<div class="empty">Henüz yorum gelmedi.</div>'; return; }
+    box.innerHTML = list.map((c) => `
+      <div class="item">
+        <div class="main">
+          <div class="t">${esc(c.text || '(boş)')}</div>
+          <div class="m">${c.username ? '<span class="tag">@' + esc(c.username) + '</span>' : ''}${c.dm_sent ? '<span class="tag">✅ DM gitti</span>' : '<span class="tag">' + esc(c.skipped_reason || 'bekliyor') + '</span>'}${new Date(c.created_at).toLocaleString('tr-TR')}</div>
+        </div>
+      </div>`).join('');
+  } catch (e) { box.innerHTML = '<div class="empty">Yüklenemedi: ' + esc(e.message) + '</div>'; }
+}
+
+async function loadIgThreads() {
+  const box = $('ig-thread-list');
+  try {
+    const list = await api('/api/ig/threads');
+    if (!list.length) { box.innerHTML = '<div class="empty">Henüz sohbet yok.</div>'; return; }
+    box.innerHTML = list.map((t) => {
+      const paused = t.paused_until && new Date(t.paused_until) > new Date();
+      const durum = !t.auto_reply ? 'ikiz kapalı' : paused ? 'sen devraldın' : 'ikiz cevaplıyor';
+      return `
+      <div class="item">
+        <div class="main">
+          <div class="t">${esc(t.username ? '@' + t.username : t.ig_user_id)}</div>
+          <div class="m"><span class="tag">${durum}</span>${t.last_message_at ? new Date(t.last_message_at).toLocaleString('tr-TR') : ''}</div>
+        </div>
+        <button class="btn link" data-igth="${t.id}" data-on="${t.auto_reply ? '0' : '1'}">${t.auto_reply ? 'İkizi kapat' : 'İkizi aç'}</button>
+      </div>`;
+    }).join('');
+    box.querySelectorAll('[data-igth]').forEach((b) => b.addEventListener('click', async () => {
+      try {
+        await api('/api/ig/threads/' + b.dataset.igth, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ auto_reply: b.dataset.on === '1' }) });
+        loadIgThreads();
+      } catch (e) { toast(e.message, true); }
+    }));
+  } catch (e) { box.innerHTML = '<div class="empty">Yüklenemedi: ' + esc(e.message) + '</div>'; }
+}
 
 // ---- Başlat ----
 (async function init() {

@@ -10,7 +10,13 @@ import {
   DEFAULT_INSTRUCTIONS,
 } from './brain';
 import { getSupabase } from './supabase';
-import { MODEL, ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY } from './config';
+import {
+  MODEL,
+  ANTHROPIC_API_KEY,
+  SUPABASE_URL,
+  SUPABASE_SERVICE_KEY,
+  WEBHOOK_PORT,
+} from './config';
 import { parseDialog, parseTags, slugify } from './parse';
 import {
   upsertConversation,
@@ -23,6 +29,8 @@ import {
   deleteProduct,
 } from './store';
 import { isImageDataUrl, uploadProductImage, deleteProductImage } from './storage';
+import { listThreads, listComments, setAutoReply } from './ig-store';
+import { listTriggers, addTrigger, deleteTrigger, toggleTrigger } from './triggers';
 
 const PORT = Number(process.env.UI_PORT ?? 3939);
 const PERSONA_PATH = path.resolve(process.cwd(), 'data/persona.md');
@@ -89,6 +97,7 @@ const server = http.createServer(async (req, res) => {
         hasAnthropic: !!ANTHROPIC_API_KEY,
         hasSupabase: !!(SUPABASE_URL && SUPABASE_SERVICE_KEY),
         model: MODEL,
+        webhookPort: WEBHOOK_PORT,
       });
     }
 
@@ -228,6 +237,57 @@ const server = http.createServer(async (req, res) => {
         await deleteProduct(supabase, id);
         return sendJson(res, 200, { ok: true });
       }
+    }
+
+    // --- Instagram: tetikleyiciler, sohbetler, yorumlar ---
+    // Canlı motor ayrı süreçte (npm run instagram); burada sadece ayarları
+    // yönetiyoruz. İkisi de aynı Supabase tablolarını kullanıyor.
+    if (p === '/api/ig/triggers') {
+      const supabase = getSupabase();
+      if (method === 'GET') return sendJson(res, 200, await listTriggers(supabase));
+      if (method === 'POST') {
+        const b = await readJson(req);
+        try {
+          await addTrigger(supabase, {
+            keyword: String(b.keyword ?? ''),
+            source: b.source,
+            action: b.action,
+            media_id: b.media_id || null,
+            dm_text: b.dm_text || null,
+            public_reply: b.public_reply || null,
+            product_slug: b.product_slug || null,
+          });
+        } catch (e) {
+          return sendJson(res, 400, { error: errMsg(e) });
+        }
+        return sendJson(res, 200, { ok: true });
+      }
+    }
+    const igTrg = p.match(/^\/api\/ig\/triggers\/([^/]+)$/);
+    if (igTrg) {
+      const supabase = getSupabase();
+      const id = decodeURIComponent(igTrg[1]);
+      if (method === 'DELETE') {
+        await deleteTrigger(supabase, id);
+        return sendJson(res, 200, { ok: true });
+      }
+      if (method === 'POST') {
+        const b = await readJson(req);
+        await toggleTrigger(supabase, id, !!b.active);
+        return sendJson(res, 200, { ok: true });
+      }
+    }
+    if (method === 'GET' && p === '/api/ig/threads') {
+      return sendJson(res, 200, await listThreads(getSupabase()));
+    }
+    const igThread = p.match(/^\/api\/ig\/threads\/([^/]+)$/);
+    if (method === 'POST' && igThread) {
+      const b = await readJson(req);
+      await setAutoReply(getSupabase(), decodeURIComponent(igThread[1]), !!b.auto_reply);
+      return sendJson(res, 200, { ok: true });
+    }
+    if (method === 'GET' && p === '/api/ig/comments') {
+      return sendJson(res, 200, await listComments(getSupabase()));
     }
 
     // --- Sohbet (akış) ---
