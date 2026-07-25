@@ -36,6 +36,7 @@ import {
   sendPrivateReply,
   replyToComment,
   fetchAttachment,
+  fetchUsername,
   type IncomingMessage,
   type IncomingComment,
 } from './instagram';
@@ -79,7 +80,15 @@ const CHANNEL_NOTE = `### KANAL — INSTAGRAM DM
 - Bu sohbet Instagram DM üzerinden geçiyor. Kısa ve mesajlaşma diliyle yaz.
 - Uzun tek blok yazma. Ayrı mesaj olarak gitmesini istediğin yeri boş satırla ayır.
 - Müşteri fotoğraf gönderirse görebiliyorsun. Fotoğrafa bakıp teşhis/hastalık yorumu YAPMA;
-  sadece kozmetik gözlem yap ve katalogdan uygun ürüne bağla.`;
+  sadece kozmetik gözlem yap ve katalogdan uygun ürüne bağla.
+
+ÜRÜN GÖRSELİ GÖNDERME (önemli):
+Bir ürün önerdiğinde, katalogda o ürünün yanında [kod: ...] varsa görsellerini de gönder:
+- Cevabında doğal bir şekilde görsel göndereceğini söyle (kendi tarzınla, ör. "birkaç görsel atayım").
+- Cevabının EN SONUNA, ayrı bir satıra tam olarak şunu yaz: [foto: kod]
+- "kod" katalogdaki o ürünün kodudur. Tek ürün için bir kez yaz.
+- Bu satırı müşteri görmez, sistem onu alıp görselleri gönderir. Başka yere yazma,
+  cümlenin içine karıştırma. Ürün önermediğin mesajlarda hiç yazma.`;
 
 // --- Mesaj işleme -----------------------------------------------------------
 
@@ -105,6 +114,54 @@ function toAnthropicMessages(history: IgTurn[]): Anthropic.MessageParam[] {
   // İlk mesaj 'user' olmalı; baştaki ikiz mesajlarını at.
   while (msgs.length && msgs[0].role === 'assistant') msgs.shift();
   return msgs;
+}
+
+// İkizin cevabındaki "[foto: kod]" işaretini ayıklar. Müşteri bu satırı görmez.
+const FOTO_ISARETI = /\[\s*foto\s*:\s*([^\]]+?)\s*\]/gi;
+function ayiklaFotoKodu(text: string): { temiz: string; slug: string | null } {
+  let slug: string | null = null;
+  const temiz = text
+    .replace(FOTO_ISARETI, (_, kod: string) => {
+      if (!slug) slug = kod.trim();
+      return '';
+    })
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return { temiz, slug };
+}
+
+// Ürünün görsellerini sırayla gönderir (her biri ayrı mesaj).
+const MAX_URUN_FOTO = 4;
+async function sendProductPhotos(
+  supabase: ReturnType<typeof getSupabase>,
+  threadId: string,
+  recipientId: string,
+  slug: string,
+): Promise<void> {
+  const p = await getProductBySlug(supabase, slug);
+  if (!p) return log(`   (foto: "${slug}" diye ürün yok)`);
+  const urls: string[] = (
+    Array.isArray(p.image_urls) && p.image_urls.length ? p.image_urls : [p.image_url]
+  ).filter((u: unknown): u is string => typeof u === 'string' && !!u);
+  if (!urls.length) return log(`   (${p.name}: görsel yok)`);
+
+  for (const url of urls.slice(0, MAX_URUN_FOTO)) {
+    try {
+      const img = await sendImage(recipientId, url);
+      await recordMessage(supabase, {
+        thread_id: threadId,
+        mid: img.mid,
+        role: 'assistant',
+        text: `[fotoğraf: ${p.name}]`,
+        image_url: url,
+      });
+      await new Promise((r) => setTimeout(r, 1500));
+    } catch (e) {
+      log(`   (görsel gönderilemedi: ${errMsg(e)})`);
+      break;
+    }
+  }
+  log(`   📸 ${p.name}: ${Math.min(urls.length, MAX_URUN_FOTO)} görsel gönderildi`);
 }
 
 // Giden mesajı gönderip kaydeder (kendi echo'muzu tanıyabilmek için mid şart).
@@ -136,21 +193,9 @@ async function applyDmTrigger(
   }
 
   if (t.action === 'product') {
-    const p = t.product_slug ? await getProductBySlug(supabase, t.product_slug) : null;
-    if (!p?.image_url) {
-      log(`   ("${t.keyword}" ürün fotoğrafı yok — ikize bırakıldı)`);
-      return false;
-    }
+    if (!t.product_slug) return false;
     if (text) await sendAndRecord(supabase, threadId, recipientId, text);
-    const img = await sendImage(recipientId, p.image_url);
-    await recordMessage(supabase, {
-      thread_id: threadId,
-      mid: img.mid,
-      role: 'assistant',
-      text: `[fotoğraf: ${p.name}]`,
-      image_url: p.image_url,
-    });
-    log(`→ ürün fotoğrafı gönderildi: ${p.name}`);
+    await sendProductPhotos(supabase, threadId, recipientId, t.product_slug);
     return true;
   }
 
@@ -162,7 +207,7 @@ async function applyDmTrigger(
     if (th) {
       await tgSafe(async () => {
         const n = await notify(
-          `✋ ${who(th)} → "${t.keyword}" tetikleyicisi: ikiz durdu, sohbet sende.\nBitince /resume yaz.`,
+          `✋ ${who(th)} → "${t.keyword}" tetikleyicisi: ikiz durdu, sohbet sende.\nBitince ▶️ Devam et'e bas.`,
           { threadId, paused: true },
         );
         if (n.messageId) await linkTelegramMessage(supabase, n.messageId, threadId);
@@ -198,7 +243,16 @@ async function forwardPhotos(
   const caption =
     `📷 ${who(thread)} fotoğraf gönderdi — ikiz durdu.\n` +
     (msg.text ? `"${msg.text}"\n` : '') +
-    'Sen konuşmayı bitirince /resume yaz.';
+    'Konuşmayı bitirince aşağıdaki ▶️ Devam et düğmesine bas.';
+
+  // Kaybolan fotoğraf/video gibi indirilemeyen eklerde URL gelmiyor — en
+  // azından haber verelim, düğme yine altında olsun.
+  if (msg.imageUrls.length === 0) {
+    const n = await notify(caption, { threadId: thread.id, paused: true });
+    if (n.messageId) await linkTelegramMessage(supabase, n.messageId, thread.id);
+    return;
+  }
+
   for (const [i, url] of msg.imageUrls.slice(0, 4).entries()) {
     const img = await fetchAttachment(url);
     const n = await notifyPhoto(url, i === 0 ? caption : '', {
@@ -220,20 +274,14 @@ async function setPause(
   if (paused) cancelPending(threadId); // bekleyen hazır cevabı da iptal et
 }
 
-// /resume: ikiz sohbetin tamamını (senin yazdıklarınla birlikte) yeniden okur.
-// Müşterinin cevapsız mesajı varsa kaldığı yerden devam eder.
+// /resume: ikiz devreye girer ama HEMEN yazmaz — müşteriden yeni mesaj
+// gelmesini bekler. Yazdığında duraklama boyunca birikenlerin tamamını
+// (senin Instagram'dan yazdıklarınla birlikte) okuyup öyle cevaplar.
 async function resumeThread(
   supabase: ReturnType<typeof getSupabase>,
   thread: IgThread,
-): Promise<boolean> {
+): Promise<void> {
   await setPause(supabase, thread.id, false);
-  const history = await loadHistory(supabase, thread.id, 3);
-  const last = history[history.length - 1];
-  if (last?.role === 'customer') {
-    schedulePending(thread.id, thread.ig_user_id);
-    return true;
-  }
-  return false;
 }
 
 const TG_HELP = `qneed kumanda 🎛
@@ -295,11 +343,10 @@ async function handleTelegram(e: TgEvent): Promise<void> {
   if (['resume', 'devam', 'ac', 'aç', 'start'].includes(cmd)) {
     const thread = await targetThread(supabase, e.replyToMessageId);
     if (!thread) return void (await notify('Devam ettirecek sohbet bulamadım.'));
-    const willReply = await resumeThread(supabase, thread);
+    await resumeThread(supabase, thread);
     log(`▶️ Telegram: ${who(thread)} devam ediyor`);
     await notify(
-      `▶️ ${who(thread)} → ikiz devam ediyor.` +
-        (willReply ? '\nMüşterinin cevapsız mesajı var, birazdan yazacak.' : ''),
+      `▶️ ${who(thread)} → ikiz devam ediyor.\nMüşteri yeni mesaj yazınca cevaplayacak.`,
       { threadId: thread.id, paused: false },
     );
     return;
@@ -354,23 +401,28 @@ function schedulePending(threadId: string, senderId: string): void {
 
   const timer = setTimeout(() => {
     pending.delete(threadId);
-    enqueue(senderId, () => replyNow(threadId, senderId));
+    // Yığın bu pencerede gelenlerle sınırlı (biraz pay bırakıyoruz).
+    enqueue(senderId, () => replyNow(threadId, senderId, firstAt - 10_000));
   }, wait);
   pending.set(threadId, { timer, firstAt, senderId });
   log(`   ⏳ ${Math.round(wait / 1000)} sn bekleniyor (yeni mesaj gelirse uzar)`);
 }
 
-// Sohbetin sonundaki ardışık müşteri mesajları = bu turda cevaplanacak yığın.
-function tailCustomerTurns(history: IgTurn[]): IgTurn[] {
+// Bu turda cevaplanacak yığın: sohbetin sonundaki ardışık müşteri mesajları.
+// `since` verilirse yalnızca bekleme penceresinde gelenler sayılır — geçmişten
+// içeri aktarılmış eski mesajlar "yeni gelmiş" gibi işlenmesin diye.
+function tailCustomerTurns(history: IgTurn[], since?: number): IgTurn[] {
   const out: IgTurn[] = [];
   for (let i = history.length - 1; i >= 0 && history[i].role === 'customer'; i--) {
-    out.unshift(history[i]);
+    const t = history[i];
+    if (since && t.created_at && new Date(t.created_at).getTime() < since) break;
+    out.unshift(t);
   }
   return out;
 }
 
 // Bekleme bitti: geçmişin tamamını oku, tek cevap yaz, gönder.
-async function replyNow(threadId: string, senderId: string): Promise<void> {
+async function replyNow(threadId: string, senderId: string, since?: number): Promise<void> {
   const supabase = getSupabase();
   const thread = await threadById(supabase, threadId);
   if (!thread) return;
@@ -378,7 +430,7 @@ async function replyNow(threadId: string, senderId: string): Promise<void> {
   if (threadIsMuted(thread)) return log('   (bekleyen cevap iptal — ikiz durdurulmuş)');
 
   const history = await loadHistory(supabase, threadId, IG_HISTORY_LIMIT);
-  const batch = tailCustomerTurns(history);
+  const batch = tailCustomerTurns(history, since);
   const batchText = batch.map((t) => t.text).join('\n').trim();
   if (!batchText) return;
 
@@ -422,11 +474,13 @@ async function replyNow(threadId: string, senderId: string): Promise<void> {
     messages,
   });
 
-  const text = reply.content
+  const ham = reply.content
     .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
     .map((b) => b.text)
     .join('')
     .trim();
+  // Ürün görseli işaretini metinden ayır.
+  const { temiz: text, slug: fotoSlug } = ayiklaFotoKodu(ham);
   if (!text) return log('   (ikiz boş cevap üretti — gönderilmedi)');
 
   // Gerçekçilik: cevap uzunluğuna göre "yazıyor..." süresi.
@@ -453,14 +507,25 @@ async function replyNow(threadId: string, senderId: string): Promise<void> {
     });
   }
   log(`→ ${senderId}: ${text.slice(0, 80)}`);
-  await tgSafe(() => notify(`🤖 ${who(thread)}: ${text.slice(0, 500)}`));
+
+  // Ürün önerdiyse görselleri arkasından gönder.
+  if (fotoSlug) await sendProductPhotos(supabase, threadId, senderId, fotoSlug);
 }
 
 // --- Gelen müşteri mesajı ---------------------------------------------------
 
 async function handleCustomerMessage(msg: IncomingMessage): Promise<void> {
   const supabase = getSupabase();
-  const thread = await getOrCreateThread(supabase, msg.senderId);
+  let thread = await getOrCreateThread(supabase, msg.senderId);
+
+  // Telegram bildiriminde numara yerine @kullanıcıadı görünsün diye bir kez çek.
+  if (!thread.username) {
+    const u = await fetchUsername(msg.senderId);
+    if (u) {
+      await supabase.from('ig_threads').update({ username: u }).eq('id', thread.id);
+      thread = { ...thread, username: u };
+    }
+  }
 
   const marks = msg.imageUrls.map(() => '[fotoğraf]').join(' ');
   const storedText = [msg.text, marks].filter(Boolean).join(' ').trim() || '[boş mesaj]';
@@ -476,33 +541,32 @@ async function handleCustomerMessage(msg: IncomingMessage): Promise<void> {
 
   log(`← ${msg.senderId}: ${storedText.slice(0, 80)}`);
 
-  // Fotoğraf geldiyse: Telegram'a ilet, ikizi durdur, müşteriye hiçbir şey yazma.
-  if (msg.imageUrls.length) {
+  // Sohbet zaten durdurulmuşsa Telegram'a hiçbir şey gönderme — sen o sırada
+  // Instagram'dan konuşuyorsun, tek "Devam et" düğmesi yeterli. Mesajlar yine
+  // kaydediliyor; devam edince ikiz hepsini okuyacak.
+  if (threadIsMuted(thread)) {
+    return log('   (ikiz durdurulmuş — kaydedildi, Telegram\'a iletilmedi)');
+  }
+
+  // Normal mesajlar Telegram'a gitmiyor: sadece ikizin durduğu anlar bildiriliyor.
+  if (!IG_AUTO_REPLY) return log('   (otomatik cevap kapalı — IG_AUTO_REPLY=false)');
+
+  // Tetikleyici kelime gelmemiş sohbetler bizim için yok hükmünde: ikiz yazmaz,
+  // fotoğrafları da Telegram'a iletilmez. Kelime gelince sohbet açılır.
+  if (!thread.unlocked) {
+    const t = pickTrigger(await listTriggers(supabase), msg.text, null, 'dm');
+    if (!t) return log('   (tetikleyici kelime yok — sohbet kilitli, karışmıyoruz)');
+    await unlockThread(supabase, thread.id);
+    log(`   🔓 "${t.keyword}" geldi — sohbet ikize açıldı`);
+  }
+
+  // Açık sohbette medya geldiyse: Telegram'a ilet, ikizi durdur, cevap yazma.
+  if (msg.hasMedia) {
     cancelPending(thread.id);
     await setAutoReply(supabase, thread.id, false);
     await tgSafe(() => forwardPhotos(supabase, thread, msg));
-    log('   📷 fotoğraf → Telegram, ikiz durduruldu (/resume ile devam)');
+    log('   📷 medya → Telegram, ikiz durduruldu');
     return;
-  }
-
-  await tgSafe(async () => {
-    const n = await notify(`💬 ${who(thread)}: ${storedText.slice(0, 500)}`, {
-      threadId: thread.id,
-      paused: threadIsMuted(thread),
-    });
-    if (n.messageId) await linkTelegramMessage(supabase, n.messageId, thread.id);
-  });
-
-  if (!IG_AUTO_REPLY) return log('   (otomatik cevap kapalı — IG_AUTO_REPLY=false)');
-  if (threadIsMuted(thread)) return log('   (ikiz bu sohbette durduruldu — /resume bekliyor)');
-
-  // Tetikleyici kelime gelmemiş sohbetlerde ikiz HİÇ yazmaz. Kelime gelince
-  // sohbet açılır ve o andan sonra normal konuşur.
-  if (!thread.unlocked) {
-    const t = pickTrigger(await listTriggers(supabase), msg.text, null, 'dm');
-    if (!t) return log('   (tetikleyici kelime yok — ikiz bu sohbete yazmıyor)');
-    await unlockThread(supabase, thread.id);
-    log(`   🔓 "${t.keyword}" geldi — sohbet ikize açıldı`);
   }
 
   schedulePending(thread.id, msg.senderId);
@@ -531,7 +595,7 @@ async function handleEcho(msg: IncomingMessage): Promise<void> {
   if (wasActive) {
     await tgSafe(async () => {
       const n = await notify(
-        `✋ ${who(thread)} sohbetini sen devraldın — ikiz durdu.\nBitince /resume yaz.`,
+        `✋ ${who(thread)} sohbetini sen devraldın — ikiz durdu.\nBitince ▶️ Devam et'e bas.`,
         { threadId: thread.id, paused: true },
       );
       if (n.messageId) await linkTelegramMessage(supabase, n.messageId, thread.id);

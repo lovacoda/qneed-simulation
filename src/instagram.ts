@@ -67,6 +67,22 @@ async function post(path: string, body: unknown): Promise<Record<string, any>> {
   return json;
 }
 
+// Müşterinin kullanıcı adını çeker (DM'de webhook sadece kimlik numarası
+// veriyor). En iyi çaba: alınamazsa numarayla devam ederiz.
+export async function fetchUsername(igsid: string): Promise<string | null> {
+  if (!IG_ACCESS_TOKEN) return null;
+  try {
+    const res = await fetch(graphUrl(`/${igsid}?fields=username`), {
+      headers: { authorization: `Bearer ${IG_ACCESS_TOKEN}` },
+    });
+    if (!res.ok) return null;
+    const j = (await res.json()) as Record<string, any>;
+    return typeof j.username === 'string' && j.username ? j.username : null;
+  } catch {
+    return null;
+  }
+}
+
 // Uzun cevabı Instagram sınırına sığan parçalara böler. Önce paragraf, sonra
 // cümle, en son kaba kesme — satıcı tarzı zaten kısa, bu bir emniyet kemeri.
 export function splitForDm(text: string): string[] {
@@ -192,6 +208,9 @@ export interface IncomingMessage {
   mid: string | null;
   text: string;
   imageUrls: string[];
+  // Herhangi bir ek var mı (fotoğraf, kaybolan fotoğraf, video, ses...).
+  // Kaybolan fotoğrafların URL'i gelmiyor ama yine de "medya geldi" sayılmalı.
+  hasMedia: boolean;
   isEcho: boolean; // bizim hesabın gönderdiği mesaj (API'den ya da telefondan)
   timestamp: number | null;
 }
@@ -221,6 +240,7 @@ export function parseWebhook(body: any): IncomingMessage[] {
         mid: m.mid ? String(m.mid) : null,
         text,
         imageUrls,
+        hasMedia: attachments.length > 0,
         isEcho: !!m.is_echo,
         timestamp: typeof ev?.timestamp === 'number' ? ev.timestamp : null,
       });

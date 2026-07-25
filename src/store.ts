@@ -133,6 +133,7 @@ export interface ProductInput {
   good_for?: string | null;
   description?: string | null;
   image_url?: string | null;
+  image_urls?: string[] | null;
 }
 
 export async function upsertProduct(supabase: SupabaseClient, p: ProductInput): Promise<void> {
@@ -149,6 +150,7 @@ export async function upsertProduct(supabase: SupabaseClient, p: ProductInput): 
   // böylece md dosyalarından çalışan ingest, arayüzden eklenmiş bir görseli
   // silmez. null = "kaldır" (arayüzdeki 'Görseli kaldır' düğmesi).
   if (p.image_url !== undefined) row.image_url = p.image_url;
+  if (p.image_urls !== undefined) row.image_urls = p.image_urls ?? [];
 
   const { error } = await supabase.from('products').upsert(row, { onConflict: 'slug' });
   if (error) throw new Error(error.message);
@@ -206,8 +208,17 @@ export async function listProducts(supabase: SupabaseClient) {
 }
 
 export async function deleteProduct(supabase: SupabaseClient, id: string): Promise<void> {
-  const { data: prev } = await supabase.from('products').select('image_url').eq('id', id).maybeSingle();
+  const { data: prev } = await supabase
+    .from('products')
+    .select('image_url,image_urls')
+    .eq('id', id)
+    .maybeSingle();
   const { error } = await supabase.from('products').delete().eq('id', id);
   if (error) throw new Error(error.message);
-  await deleteProductImage(supabase, prev?.image_url);
+  const urls = new Set<string>(
+    [...(Array.isArray(prev?.image_urls) ? prev.image_urls : []), prev?.image_url].filter(
+      (u): u is string => typeof u === 'string' && !!u,
+    ),
+  );
+  for (const u of urls) await deleteProductImage(supabase, u);
 }

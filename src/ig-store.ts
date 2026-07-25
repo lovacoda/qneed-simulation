@@ -107,6 +107,7 @@ export interface IgTurn {
   role: IgRole;
   text: string;
   image_url?: string | null;
+  created_at?: string | null;
 }
 
 // Sohbetin son N mesajı (eskiden yeniye). Claude'a bağlam olarak gider.
@@ -117,7 +118,7 @@ export async function loadHistory(
 ): Promise<IgTurn[]> {
   const { data } = await supabase
     .from('ig_messages')
-    .select('role,text,image_url')
+    .select('role,text,image_url,created_at')
     .eq('thread_id', threadId)
     .order('created_at', { ascending: false })
     .limit(limit);

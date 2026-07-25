@@ -196,18 +196,27 @@ const server = http.createServer(async (req, res) => {
           (typeof b.slug === 'string' && b.slug.trim()) ||
           `${slugify(String(b.name))}-${shortId()}`;
 
-        // Görsel üç halde gelebilir: yeni yükleme (data URL), değişmemiş kayıtlı
-        // URL, ya da hiçbiri (kullanıcı görseli kaldırdı).
+        // Görseller sıralı tek liste geliyor: "data:" ile başlayanlar yeni
+        // yüklenecek dosyalar, diğerleri zaten kayıtlı URL'ler. Sıra korunuyor —
+        // ilk görsel katalog kapağı ve gönderimde ilk sırada.
         const prev = await getProductBySlug(supabase, slug);
-        let imageUrl: string | null =
-          typeof b.image_url === 'string' && b.image_url.trim() ? b.image_url.trim() : null;
-        let uploaded: string | null = null;
-        if (isImageDataUrl(b.image)) {
-          uploaded = await uploadProductImage(supabase, slug, b.image);
-          imageUrl = uploaded;
-        }
-
+        const gelen: string[] = Array.isArray(b.images)
+          ? (b.images as unknown[]).filter(
+              (s): s is string => typeof s === 'string' && s.trim().length > 0,
+            )
+          : [];
+        const yuklenen: string[] = []; // hata olursa geri almak için
+        const imageUrls: string[] = [];
         try {
+          for (const item of gelen.slice(0, 4)) {
+            if (/^https?:\/\//i.test(item)) {
+              imageUrls.push(item.trim()); // zaten kayıtlı görsel
+            } else if (isImageDataUrl(item)) {
+              const url = await uploadProductImage(supabase, slug, item);
+              yuklenen.push(url);
+              imageUrls.push(url);
+            }
+          }
           await upsertProduct(supabase, {
             slug,
             name: String(b.name).trim(),
@@ -215,18 +224,23 @@ const server = http.createServer(async (req, res) => {
             category: b.category || null,
             good_for: b.good_for || null,
             description: b.description || null,
-            image_url: imageUrl,
+            image_url: imageUrls[0] ?? null,
+            image_urls: imageUrls,
           });
         } catch (e) {
-          // Kayıt tutmadıysa yeni yüklenen görsel Storage'da yetim kalmasın.
-          await deleteProductImage(supabase, uploaded);
+          // Kayıt tutmadıysa yeni yüklenenler Storage'da yetim kalmasın.
+          for (const u of yuklenen) await deleteProductImage(supabase, u);
           throw e;
         }
-        // Kayıt tamam; eski görsel artık kullanılmıyorsa Storage'dan temizle.
-        if (prev?.image_url && prev.image_url !== imageUrl) {
-          await deleteProductImage(supabase, prev.image_url);
+        // Kayıt tamam; artık kullanılmayan eski görselleri Storage'dan temizle.
+        const eskiler: string[] = [
+          ...(Array.isArray(prev?.image_urls) ? prev.image_urls : []),
+          prev?.image_url,
+        ].filter((u): u is string => typeof u === 'string' && !!u);
+        for (const eski of new Set(eskiler)) {
+          if (!imageUrls.includes(eski)) await deleteProductImage(supabase, eski);
         }
-        return sendJson(res, 200, { ok: true, slug, image_url: imageUrl });
+        return sendJson(res, 200, { ok: true, slug, image_urls: imageUrls });
       }
     }
     const prodMatch = p.match(/^\/api\/products\/([^/]+)$/);

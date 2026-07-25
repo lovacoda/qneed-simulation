@@ -91,7 +91,11 @@ async function loadProducts(): Promise<string> {
       ]
         .filter(Boolean)
         .join(' — ');
-      return `- ${p.name}${extra ? ' — ' + extra : ''}`;
+      // Görseli olan ürünlerde slug'ı da veriyoruz: ikiz fotoğraf göndermek
+      // istediğinde hangi ürün olduğunu bu kodla belirtiyor.
+      const fotoSayisi = Array.isArray(p.image_urls) ? p.image_urls.length : p.image_url ? 1 : 0;
+      const kod = fotoSayisi > 0 ? ` [kod: ${p.slug}, ${fotoSayisi} görsel]` : '';
+      return `- ${p.name}${extra ? ' — ' + extra : ''}${kod}`;
     });
     return `### ÜRÜN KATALOĞU (SADECE bunları öner)\n${lines.join('\n')}`;
   } catch {

@@ -183,13 +183,10 @@
         <input id="pr-goodfor" placeholder="yağlı ve karma ciltler, gözenek görünümü" />
         <label>Açıklama</label>
         <textarea id="pr-description" rows="4" placeholder="Niacinamide %10 + Çinko. Sebum dengeler, gözenek görünümünü azaltır..."></textarea>
-        <label>Fotoğraf</label>
-        <p class="sub" style="margin:0 0 6px">PNG/JPEG. İleride müşteriye gönderilecek görsel. Uzun kenar 1080px'e küçültülür.</p>
-        <input type="file" id="pr-image" accept="image/png,image/jpeg" />
-        <div class="img-prev" id="pr-image-prev" style="display:none">
-          <img id="pr-image-thumb" alt="" />
-          <button class="btn link del" id="pr-image-remove" type="button">Görseli kaldır</button>
-        </div>
+        <label>Fotoğraflar</label>
+        <p class="sub" style="margin:0 0 6px">PNG/JPEG, birden fazla seçebilirsin (en fazla 4 tanesi gönderilir). İkiz bu ürünü önerdiğinde bunları müşteriye yollar. İlk görsel katalog kapağı olur; uzun kenar 1080px'e küçültülür.</p>
+        <input type="file" id="pr-image" accept="image/png,image/jpeg" multiple />
+        <div class="img-prev" id="pr-image-prev" style="display:none;flex-wrap:wrap"></div>
         <div class="actions">
           <button class="btn" id="pr-save">Kaydet</button>
           <button class="btn ghost" id="pr-clear">Temizle</button>
@@ -477,10 +474,11 @@ async function loadProducts() {
     box.querySelectorAll('[data-pdel]').forEach((b) => b.addEventListener('click', () => delProduct(b.dataset.pdel)));
   } catch (e) { box.innerHTML = '<div class="empty">Yüklenemedi: ' + esc(e.message) + '</div>'; }
 }
-// Görsel durumu: prImage = yeni seçilen (data URL), prImageUrl = kayıtlı görselin URL'i.
-// Kaydederken ikisi de boşsa görsel kaldırılmış demektir.
-let prImage = null;
-let prImageUrl = '';
+// Görseller tek listede tutuluyor. Her eleman ya yeni seçilen dosya (data URL)
+// ya da kayıtlı görselin adresi (https). Kaydederken ikisini ayırıyoruz.
+// Sıra önemli: ilk görsel katalog kapağı, gönderim de bu sırayla oluyor.
+let prImages = [];
+const MAX_PR_IMAGES = 4;
 
 const IMG_MAX_W = 1080;  // Instagram zaten 1080'e sıkıştırıyor; küçültmeyi biz yapalım
 const IMG_MIN_W = 320;   // Instagram'ın kabul ettiği alt sınır
@@ -506,31 +504,41 @@ function fileToDataUrl(file) {
     img.src = objUrl;
   });
 }
-function showProductImage(src) {
-  $('pr-image-prev').style.display = src ? 'flex' : 'none';
-  if (src) $('pr-image-thumb').src = src;
+function renderProductImages() {
+  const box = $('pr-image-prev');
+  box.style.display = prImages.length ? 'flex' : 'none';
+  box.innerHTML = prImages.map((src, i) => `
+    <div style="position:relative">
+      <img src="${esc(src)}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:9px;border:1px solid var(--line)" />
+      ${i === 0 ? '<span class="tag" style="position:absolute;bottom:-2px;left:0">kapak</span>' : ''}
+      <button type="button" class="btn link del" data-imgdel="${i}"
+        style="position:absolute;top:-10px;right:-10px;background:#fff;border:1px solid var(--line);border-radius:50%;width:20px;height:20px;padding:0;line-height:1">×</button>
+    </div>`).join('');
+  box.querySelectorAll('[data-imgdel]').forEach((b) =>
+    b.addEventListener('click', () => { prImages.splice(Number(b.dataset.imgdel), 1); renderProductImages(); }));
 }
 $('pr-image').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  try {
-    prImage = await fileToDataUrl(file);
-    showProductImage(prImage);
-  } catch (err) { toast(err.message, true); $('pr-image').value = ''; }
-});
-$('pr-image-remove').addEventListener('click', () => {
-  prImage = null; prImageUrl = ''; $('pr-image').value = ''; showProductImage(null);
+  const files = [...e.target.files];
+  for (const file of files) {
+    if (prImages.length >= MAX_PR_IMAGES) { toast(`En fazla ${MAX_PR_IMAGES} görsel.`, true); break; }
+    try { prImages.push(await fileToDataUrl(file)); }
+    catch (err) { toast(err.message, true); }
+  }
+  $('pr-image').value = '';
+  renderProductImages();
 });
 
 function clearProductForm() {
   ['pr-slug', 'pr-name', 'pr-category', 'pr-goodfor', 'pr-description'].forEach((i) => ($(i).value = ''));
-  prImage = null; prImageUrl = ''; $('pr-image').value = ''; showProductImage(null);
+  prImages = []; $('pr-image').value = ''; renderProductImages();
 }
 function editProduct(p) {
   $('pr-slug').value = p.slug; $('pr-name').value = p.name || ''; $('pr-category').value = p.category || '';
   $('pr-goodfor').value = p.good_for || ''; $('pr-description').value = p.description || '';
-  prImage = null; prImageUrl = p.image_url || ''; $('pr-image').value = '';
-  showProductImage(prImageUrl);
+  // Eski kayıtlarda sadece image_url var; yenilerde image_urls listesi.
+  prImages = (p.image_urls && p.image_urls.length ? p.image_urls : [p.image_url]).filter(Boolean);
+  $('pr-image').value = '';
+  renderProductImages();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 async function delProduct(id) {
@@ -543,7 +551,8 @@ $('pr-save').addEventListener('click', async () => {
   const body = {
     slug: $('pr-slug').value, name: $('pr-name').value, category: $('pr-category').value,
     good_for: $('pr-goodfor').value, description: $('pr-description').value,
-    image: prImage, image_url: prImageUrl,
+    // Sıralı tek liste: "data:" ile başlayanlar yeni yüklenecek, diğerleri kayıtlı.
+    images: prImages,
   };
   try {
     await api('/api/products', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });

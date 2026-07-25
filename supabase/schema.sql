@@ -93,6 +93,9 @@ $$;
 -- Bu blok idempotent: var olan bir veritabanında tekrar çalıştırılabilir.
 -- ============================================================================
 alter table products add column if not exists image_url text;
+-- Birden fazla ürün görseli. image_url ilk/ana görsel olarak kalır (katalog
+-- küçük resmi); image_urls tamamını tutar ve DM'de sırayla gönderilir.
+alter table products add column if not exists image_urls text[] default '{}';
 
 -- 'product-images' adlı public kovayı uygulama ilk yüklemede kendisi oluşturur
 -- (src/storage.ts). Burada elle bir şey yapman gerekmiyor.
