@@ -148,6 +148,15 @@ alter table ig_triggers add column if not exists source text default 'comment';
 alter table ig_triggers add column if not exists action text default 'ai';
 alter table ig_triggers add column if not exists product_slug text;
 
+-- Ayarlar: sistem promptu ve işletme notu. Eskiden data/prompt.md dosyasındaydı;
+-- sunucu buluta taşınınca yerel dosyayı göremediği için veritabanına alındı.
+-- Böylece laboratuvar (yerel) düzenler, buluttaki sunucu anında kullanır.
+create table if not exists settings (
+  key text primary key,
+  value text,
+  updated_at timestamptz default now()
+);
+
 -- Telegram bildirimi <-> sohbet eşlemesi. Telegram'da bir bildirime
 -- "kaydırıp yanıtla" ile /pause yazdığında hangi müşteriden bahsettiğini
 -- buradan buluyoruz.

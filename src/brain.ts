@@ -54,28 +54,56 @@ const INSTRUCTIONS_PATH = path.resolve(process.cwd(), 'data/prompt.md');
 
 export const DEFAULT_INSTRUCTIONS = [ROLE, PLAYBOOK, GUARDRAILS].join('\n\n');
 
-export function readInstructions(): string {
+// Ayarlar Supabase'de (settings tablosu) tutuluyor: sunucu bulutta, laboratuvar
+// yerelde çalıştığı için ikisinin aynı metni görmesi gerekiyor. Veritabanında
+// kayıt yoksa eski yerel dosyaya düşüyoruz (geçiş kolay olsun diye).
+async function readSetting(key: string): Promise<string> {
   try {
-    const t = fs.readFileSync(INSTRUCTIONS_PATH, 'utf8').trim();
-    return t || DEFAULT_INSTRUCTIONS;
+    const { data } = await getSupabase().from('settings').select('value').eq('key', key).maybeSingle();
+    const v = typeof data?.value === 'string' ? data.value.trim() : '';
+    if (v) return v;
   } catch {
-    return DEFAULT_INSTRUCTIONS;
+    /* Supabase yoksa dosyaya düşeriz */
   }
+  return '';
 }
 
-export function writeInstructions(text: string): void {
-  fs.mkdirSync(path.dirname(INSTRUCTIONS_PATH), { recursive: true });
-  fs.writeFileSync(INSTRUCTIONS_PATH, typeof text === 'string' ? text : '', 'utf8');
+async function writeSetting(key: string, value: string): Promise<void> {
+  const { error } = await getSupabase()
+    .from('settings')
+    .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+  if (error) throw new Error(error.message);
 }
 
-// İsteğe bağlı işletme notu (data/persona.md). Tarz DEĞİL — sadece marka/işletme bilgisi.
-function readBusinessNote(): string {
-  const p = path.resolve(process.cwd(), 'data/persona.md');
+function readFileSafe(p: string): string {
   try {
     return fs.readFileSync(p, 'utf8').trim();
   } catch {
     return '';
   }
+}
+
+export async function readInstructions(): Promise<string> {
+  return (
+    (await readSetting('instructions')) ||
+    readFileSafe(INSTRUCTIONS_PATH) ||
+    DEFAULT_INSTRUCTIONS
+  );
+}
+
+export async function writeInstructions(text: string): Promise<void> {
+  await writeSetting('instructions', typeof text === 'string' ? text : '');
+}
+
+// İsteğe bağlı işletme notu. Tarz DEĞİL — sadece marka/işletme bilgisi.
+const PERSONA_FILE = path.resolve(process.cwd(), 'data/persona.md');
+
+export async function readBusinessNote(): Promise<string> {
+  return (await readSetting('business_note')) || readFileSafe(PERSONA_FILE);
+}
+
+export async function writeBusinessNote(text: string): Promise<void> {
+  await writeSetting('business_note', typeof text === 'string' ? text : '');
 }
 
 async function loadProducts(): Promise<string> {
@@ -205,9 +233,12 @@ async function loadStyleExamples(query?: string): Promise<string> {
 // channelNote: kanala özel ek talimat (ör. Instagram DM kuralları). Ana
 // talimatların hemen altına girer, tarz örneklerinin üstünde kalır.
 export async function buildSystemPrompt(query?: string, channelNote?: string): Promise<string> {
-  const note = readBusinessNote();
-  const instructions = readInstructions();
-  const [products, examples] = await Promise.all([loadProducts(), loadStyleExamples(query)]);
+  const [note, instructions, products, examples] = await Promise.all([
+    readBusinessNote(),
+    readInstructions(),
+    loadProducts(),
+    loadStyleExamples(query),
+  ]);
   return [
     instructions,
     channelNote ?? '',

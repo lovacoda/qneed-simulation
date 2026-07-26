@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Kişilik klonu satış AI ikizi — beyin + Supabase konuşma deposu",
   "scripts": {
+    "start": "tsx src/webhook.ts",
     "ui": "tsx src/ui.ts",
     "chat": "tsx src/chat.ts",
     "instagram": "tsx src/webhook.ts",
@@ -16,11 +17,11 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
     "@supabase/supabase-js": "^2.110.2",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "tsx": "^4.23.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
-    "tsx": "^4.23.0",
     "typescript": "^7.0.2"
   }
 }

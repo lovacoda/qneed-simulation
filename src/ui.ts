@@ -7,6 +7,8 @@ import {
   buildSystemPrompt,
   readInstructions,
   writeInstructions,
+  readBusinessNote,
+  writeBusinessNote,
   DEFAULT_INSTRUCTIONS,
 } from './brain';
 import { getSupabase } from './supabase';
@@ -41,7 +43,6 @@ import {
 import { listTriggers, addTrigger, deleteTrigger, toggleTrigger } from './triggers';
 
 const PORT = Number(process.env.UI_PORT ?? 3939);
-const PERSONA_PATH = path.resolve(process.cwd(), 'data/persona.md');
 const HTML_PATH = path.resolve(process.cwd(), 'public/index.html');
 
 const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
@@ -109,36 +110,27 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    // --- Persona (data/persona.md) ---
+    // --- İşletme notu (Supabase settings; eski data/persona.md'ye düşer) ---
     if (p === '/api/persona') {
-      if (method === 'GET') {
-        let text = '';
-        try {
-          text = fs.readFileSync(PERSONA_PATH, 'utf8');
-        } catch {
-          /* dosya yoksa boş döner */
-        }
-        return sendJson(res, 200, { text });
-      }
+      if (method === 'GET') return sendJson(res, 200, { text: await readBusinessNote() });
       if (method === 'POST') {
         const b = await readJson(req);
-        fs.mkdirSync(path.dirname(PERSONA_PATH), { recursive: true });
-        fs.writeFileSync(PERSONA_PATH, typeof b.text === 'string' ? b.text : '', 'utf8');
+        await writeBusinessNote(typeof b.text === 'string' ? b.text : '');
         return sendJson(res, 200, { ok: true });
       }
     }
 
-    // --- Ana talimatlar (düzenlenebilir: data/prompt.md) ---
+    // --- Ana talimatlar (Supabase settings; eski data/prompt.md'ye düşer) ---
     if (p === '/api/prompt') {
       if (method === 'GET') {
         return sendJson(res, 200, {
-          text: readInstructions(),
+          text: await readInstructions(),
           default: DEFAULT_INSTRUCTIONS,
         });
       }
       if (method === 'POST') {
         const b = await readJson(req);
-        writeInstructions(typeof b.text === 'string' ? b.text : '');
+        await writeInstructions(typeof b.text === 'string' ? b.text : '');
         return sendJson(res, 200, { ok: true });
       }
     }

@@ -27,7 +27,8 @@ export const IG_GRAPH_VERSION = process.env.IG_GRAPH_VERSION ?? 'v23.0';
 export const IG_AUTO_REPLY = (process.env.IG_AUTO_REPLY ?? 'true').toLowerCase() !== 'false';
 // Claude'a taşınan geçmiş mesaj sayısı.
 export const IG_HISTORY_LIMIT = Number(process.env.IG_HISTORY_LIMIT ?? 20);
-export const WEBHOOK_PORT = Number(process.env.WEBHOOK_PORT ?? 3940);
+// Bulut sağlayıcıları (Railway vb.) portu PORT değişkeniyle veriyor.
+export const WEBHOOK_PORT = Number(process.env.PORT ?? process.env.WEBHOOK_PORT ?? 3940);
 
 // --- Mesaj biriktirme (insan gibi cevap vermek için) ------------------------
 // Müşteri alt alta 5 mesaj atarsa 5 ayrı cevap yazmak yerine susup bekler,
